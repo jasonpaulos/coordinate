@@ -9,7 +9,7 @@
       "type": "cppdbg",
       "request": "launch",
       "preLaunchTask": "make",
-      "program": "${workspaceFolder}/bin/dsm",
+      "program": "${workspaceFolder}/bin/coordinate",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src",

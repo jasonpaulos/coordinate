@@ -12,7 +12,7 @@ $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
 	@mkdir -p $(@D)
 	$(CC) -g -c -o $@ $< $(CFLAGS)
 
-$(ODIR)/dsm: $(OBJS)
+$(ODIR)/coordinate: $(OBJS)
 	$(CC) -g -o $@ $^ $(CFLAGS)
 
 .PHONY: clean
