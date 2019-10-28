@@ -1,7 +1,7 @@
 #ifndef COORDINATE_SERVER_H
 #define COORDINATE_SERVER_H
 
-struct cdt_connection;
+typedef struct cdt_connection cdt_connection;
 
 /**
  * An object that represents a coordinate server.
@@ -15,6 +15,7 @@ typedef struct cdt_server {
 
 /**
  * Create a new coordinate server with a local address and port.
+ * Pass in a null pointer for address to accept incoming messages to any address.
  * 
  * Returns 0 on success, -1 on error.
  */

@@ -35,6 +35,7 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, int 
 }
 
 void cdt_connection_close(cdt_connection *connection) {
+  shutdown(connection->fd, SHUT_RDWR);
   close(connection->fd);
   connection->fd = -1;
 }

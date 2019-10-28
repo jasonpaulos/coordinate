@@ -10,7 +10,7 @@
       "request": "launch",
       "preLaunchTask": "make",
       "program": "${workspaceFolder}/bin/coordinate",
-      "args": [],
+      "args": ["--host", "localhost:8000"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/src",
       "environment": [],
