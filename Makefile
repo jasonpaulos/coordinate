@@ -5,8 +5,8 @@ ODIR = bin
 CC = gcc
 CFLAGS = -Wall -Werror -I$(IDIR)
 
-DEPS = $(IDIR)/coordinate.h
-OBJS = $(ODIR)/main.o
+DEPS := $(wildcard $(IDIR)/*.h)
+OBJS := $(patsubst $(SDIR)/%.c,$(ODIR)/%.o,$(wildcard $(SDIR)/*.c))
 
 $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
 	@mkdir -p $(@D)
