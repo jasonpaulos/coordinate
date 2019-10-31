@@ -1,7 +1,3 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
@@ -63,7 +59,9 @@ void cdt_server_close(cdt_server *server) {
 }
 
 int cdt_server_accept(const cdt_server *server, cdt_connection *connection) {
-  int connfd = accept(server->fd, (struct sockaddr*)NULL, 0);
-  return cdt_connection_create(connection, connfd);
-}
+  struct sockaddr_storage addr;
+  socklen_t len = sizeof(struct sockaddr_storage);
+  int connfd = accept(server->fd, (struct sockaddr*)&addr, &len);
 
+  return cdt_connection_create(connection, connfd, &addr);
+}

@@ -10,7 +10,7 @@ void* cdt_host_thread(void *arg) {
 
   cdt_connection connection;
   while (cdt_server_accept(server, &connection) == 0) {
-    printf("Client connected\n");
+    printf("Client connected from %s:%d\n", connection.address, connection.port);
     char buffer[100];
     int n = cdt_connection_read(&connection, buffer, sizeof(buffer));
     printf("Read %d characters: %s", n, buffer);

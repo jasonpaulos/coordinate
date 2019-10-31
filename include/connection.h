@@ -1,19 +1,22 @@
 #ifndef COORDINATE_CONNECTION_H
 #define COORDINATE_CONNECTION_H
+#include <arpa/inet.h>
 
 /**
  * An object that represents a coodinate connection.
  */
 typedef struct cdt_connection {
   int fd;
+  int port;
+  char address[INET6_ADDRSTRLEN];
 } cdt_connection;
 
 /**
- * Create a new connection from a socket file descriptor.
+ * Create a new connection from a socket file descriptor and peer address.
  * 
  * Returns 0 on success, -1 if the descriptor is invalid.
  */
-int cdt_connection_create(cdt_connection *connection, int fd);
+int cdt_connection_create(cdt_connection *connection, int fd, struct sockaddr_storage *addr);
 
 /**
  * Create a new connection by attempting to connect to a given IP address and port.

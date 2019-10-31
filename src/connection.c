@@ -1,18 +1,43 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
 #include "util.h"
 #include "connection.h"
 
-int cdt_connection_create(cdt_connection *connection, int fd) {
+int extract_location_from_addr(int family, struct sockaddr *addr, cdt_connection *connection) {
+  if (family == AF_INET) {
+
+    struct sockaddr_in *s = (struct sockaddr_in *)addr;
+    connection->port = ntohs(s->sin_port);
+    if (inet_ntop(AF_INET, &s->sin_addr, connection->address, sizeof(connection->address)) == NULL)
+      return -1;
+
+  } else if (family == AF_INET6) {
+
+    struct sockaddr_in6 *s = (struct sockaddr_in6 *)addr;
+    connection->port = ntohs(s->sin6_port);
+    if (inet_ntop(AF_INET6, &s->sin6_addr, connection->address, sizeof(connection->address)) == NULL)
+      return -1;
+
+  } else {
+    return -1;
+  }
+
+  return 0;
+}
+
+int cdt_connection_create(cdt_connection *connection, int fd, struct sockaddr_storage *addr) {
   if (fd < 0)
     return -1;
 
+  memset(connection, 0, sizeof(cdt_connection));
   connection->fd = fd;
+
+  if (extract_location_from_addr(addr->ss_family, (struct sockaddr*)addr, connection) != 0) {
+    debug_print("Cannot extract address from socket\n");
+    cdt_connection_close(connection);
+    return -1;
+  }
 
   return 0;
 }
@@ -33,6 +58,8 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, cons
     return -1;
   }
 
+  memset(connection, 0, sizeof(cdt_connection));
+
   struct addrinfo *rp;
   int sfd;
   for (rp = result; rp != NULL; rp = rp->ai_next) {
@@ -40,8 +67,15 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, cons
     if (sfd == -1)
       continue;
 
-    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
+      if (extract_location_from_addr(rp->ai_family, rp->ai_addr, connection) != 0) {
+        debug_print("Cannot extract address from socket\n");
+        close(sfd);
+        freeaddrinfo(result);
+        return -1;
+      }
       break;
+    }
     
     close(sfd);
   }
@@ -53,7 +87,6 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, cons
     return -1;
   }
 
-  memset(connection, 0, sizeof(cdt_connection));
   connection->fd = sfd;
   return 0;
 }
