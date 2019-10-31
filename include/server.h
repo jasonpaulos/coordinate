@@ -1,8 +1,6 @@
 #ifndef COORDINATE_SERVER_H
 #define COORDINATE_SERVER_H
 
-#include <pthread.h>
-
 typedef struct cdt_connection cdt_connection;
 
 /**
@@ -43,7 +41,5 @@ void cdt_server_close(cdt_server *server);
  * Returns 0 on success, -1 on error.
  */
 int cdt_server_accept(const cdt_server *server, cdt_connection *connection);
-
-int cdt_server_start(cdt_server *server, pthread_t *thread);
 
 #endif

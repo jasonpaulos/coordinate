@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "server.h"
 #include "connection.h"
+#include "host.h"
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -64,7 +65,10 @@ int main(int argc, char *argv[]) {
     printf("Listening at %s:%s\n", address == NULL ? "*" : address, port);
 
     pthread_t thread;
-    cdt_server_start(&server, &thread);
+    if (cdt_host_start(&thread, &server) == -1) {
+      fprintf(stderr, "Cannot start host thread\n");
+      return -1;
+    }
     pthread_join(thread, NULL);
 
   } else {
