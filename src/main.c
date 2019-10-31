@@ -4,29 +4,9 @@
 #include "server.h"
 #include "connection.h"
 
-/**
- * Parse an IPv4 address of the form ip:port
- */
-int parseIPAddress(const char *address, char *ip, int *port, int ipLength) {
-  const char *lastColon = strrchr(address, ':');
-  if (lastColon == 0)
-    return -1;
-  
-  int lastColonIndex = lastColon - address + 1;
-  if (lastColonIndex + 1 > ipLength)
-    return -1;
-  
-  memmove(ip, address, lastColonIndex - 1);
-  ip[lastColonIndex - 1] = 0;
-
-  *port = atoi(lastColon + 1);
-
-  return 0;
-}
-
-int main(int argc, const char *argv[]) {
+int main(int argc, char *argv[]) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: coordinate [OPTION]... COMMAND [INITIAL_ARGS]...\n");
+    fprintf(stderr, "Usage: %s [OPTION]... COMMAND [INITIAL_ARGS]...\n", argv[0]);
     return -1;
   }
 
@@ -54,16 +34,25 @@ int main(int argc, const char *argv[]) {
     return -1;
   }
 
-  char ip[100];
-  int port = 0;
-  if (parseIPAddress(argv[hostIndex | connectionIndex], ip, &port, sizeof(ip)) == -1) {
-    fprintf(stderr, "Unable to parse address: %s\n", argv[hostIndex | connectionIndex]);
-    return -1;
+  char *port;
+  char *address = argv[hostIndex | connectionIndex];
+  char *lastColon = strrchr(address, ':');
+  if (lastColon == NULL) {
+    if (!hostIndex) {
+      fprintf(stderr, "Unable to parse address: %s\n", address);
+      return -1;
+    }
+
+    port = address;
+    address = NULL;
+  } else {
+    port = lastColon + 1;
+    *lastColon = 0;
   }
 
   if (hostIndex) {
     cdt_server server;
-    if (cdt_server_create(&server, ip, port) == -1) {
+    if (cdt_server_create(&server, address, port) == -1) {
       fprintf(stderr, "Cannot create server\n");
       return -1;
     }
@@ -72,28 +61,19 @@ int main(int argc, const char *argv[]) {
       return -1;
     }
 
-    printf("Listening at %s:%d\n", ip, port);
+    printf("Listening at %s:%s\n", address == NULL ? "*" : address, port);
 
-    while (1) {
-      cdt_connection connection;
-      if (cdt_server_accept(&server, &connection) == -1) {
-        fprintf(stderr, "Error accepting client\n");
-        continue;
-      }
-
-      printf("Client connected\n");
-      char buffer[100];
-      int n = cdt_connection_read(&connection, buffer, sizeof(buffer));
-      printf("Read %d characters: %s", n, buffer);
-    }
+    pthread_t thread;
+    cdt_server_start(&server, &thread);
+    pthread_join(thread, NULL);
 
   } else {
     cdt_connection connection;
-    if (cdt_connection_connect(&connection, ip, port) == -1) {
+    if (cdt_connection_connect(&connection, address, port) == -1) {
       fprintf(stderr, "Error connecting to server\n");
       return -1;
     }
-    printf("Connected to %s:%d\n", ip, port);
+    printf("Connected to %s:%s\n", address, port);
 
     char message[] = "Hello world!\n";
     int n = cdt_connection_write(&connection, message, sizeof(message));

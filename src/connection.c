@@ -1,8 +1,11 @@
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include "util.h"
 #include "connection.h"
 
 int cdt_connection_create(cdt_connection *connection, int fd) {
@@ -14,23 +17,44 @@ int cdt_connection_create(cdt_connection *connection, int fd) {
   return 0;
 }
 
-int cdt_connection_connect(cdt_connection *connection, const char *address, int port) {
-  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0)
+int cdt_connection_connect(cdt_connection *connection, const char *address, const char *port) {
+  struct addrinfo hints;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = 0;
+  hints.ai_protocol = 0;
+
+  struct addrinfo *result;
+  int s = getaddrinfo(address, port, &hints, &result);
+  if (s != 0) {
+    debug_print("getaddrinfo: %s\n", gai_strerror(s));
     return -1;
+  }
 
-  struct sockaddr_in serv_addr;
-  memset(&serv_addr, 0, sizeof(serv_addr));
+  struct addrinfo *rp;
+  int sfd;
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sfd == -1)
+      continue;
 
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = inet_addr(address);
-  serv_addr.sin_port = htons(port);
+    if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+      break;
+    
+    close(sfd);
+  }
 
-  if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+  freeaddrinfo(result);
+
+  if (rp == NULL) {
+    debug_print("Could not connect\n");
     return -1;
+  }
 
-  connection->fd = sockfd;
-
+  memset(connection, 0, sizeof(cdt_connection));
+  connection->fd = sfd;
   return 0;
 }
 

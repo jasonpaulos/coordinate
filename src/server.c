@@ -1,28 +1,55 @@
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include "util.h"
 #include "connection.h"
 #include "server.h"
 
-int cdt_server_create(cdt_server *server, const char *address, int port) {
-  int listenfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (listenfd < 0)
+int cdt_server_create(cdt_server *server, const char *address, const char *port) {
+  struct addrinfo hints;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+
+  struct addrinfo *result;
+  int s = getaddrinfo(address, port, &hints, &result);
+  if (s != 0) {
+    debug_print("getaddrinfo: %s\n", gai_strerror(s));
     return -1;
+  }
 
-  struct sockaddr_in serv_addr;
-  memset(&serv_addr, 0, sizeof(serv_addr));
+  struct addrinfo *rp;
+  int sfd;
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sfd == -1)
+      continue;
+    
+    if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
+      break;
+    
+    close(sfd);
+  }
 
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = address == 0 ? htonl(INADDR_ANY) : inet_addr(address);
-  serv_addr.sin_port = htons(port);
+  freeaddrinfo(result);
 
-  if (bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
+  if (rp == NULL) {
+    debug_print("Could not bind\n");
     return -1;
+  }
 
-  server->fd = listenfd;
-
+  memset(server, 0, sizeof(cdt_server));
+  server->fd = sfd;
   return 0;
 }
 
@@ -36,6 +63,26 @@ void cdt_server_close(cdt_server *server) {
 }
 
 int cdt_server_accept(const cdt_server *server, cdt_connection *connection) {
-  int connfd = accept(server->fd, (struct sockaddr*)0, 0);
+  int connfd = accept(server->fd, (struct sockaddr*)NULL, 0);
   return cdt_connection_create(connection, connfd);
+}
+
+void* cdt_server_start_thread(void *arg) {
+  cdt_server *server = (cdt_server*)arg;
+
+  printf("Server started\n");
+
+  cdt_connection connection;
+  while (cdt_server_accept(server, &connection) == 0) {
+    printf("Client connected\n");
+    char buffer[100];
+    int n = cdt_connection_read(&connection, buffer, sizeof(buffer));
+    printf("Read %d characters: %s", n, buffer);
+  }
+
+  return 0;
+}
+
+int cdt_server_start(cdt_server *server, pthread_t *thread) {
+  return pthread_create(thread, NULL, cdt_server_start_thread, (void*)server);
 }

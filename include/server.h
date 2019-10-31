@@ -1,6 +1,8 @@
 #ifndef COORDINATE_SERVER_H
 #define COORDINATE_SERVER_H
 
+#include <pthread.h>
+
 typedef struct cdt_connection cdt_connection;
 
 /**
@@ -14,12 +16,13 @@ typedef struct cdt_server {
 } cdt_server;
 
 /**
- * Create a new coordinate server with a local address and port.
+ * Create a new coordinate server that will listen on the specified address and port.
  * Pass in a null pointer for address to accept incoming messages to any address.
+ * Pass in a string containing a numeric port number or service name for port.
  * 
  * Returns 0 on success, -1 on error.
  */
-int cdt_server_create(cdt_server *server, const char *address, int port);
+int cdt_server_create(cdt_server *server, const char *address, const char *port);
 
 /**
  * Begin listening on the server.
@@ -40,5 +43,7 @@ void cdt_server_close(cdt_server *server);
  * Returns 0 on success, -1 on error.
  */
 int cdt_server_accept(const cdt_server *server, cdt_connection *connection);
+
+int cdt_server_start(cdt_server *server, pthread_t *thread);
 
 #endif

@@ -3,7 +3,7 @@ SDIR = src
 ODIR = bin
 
 CC = gcc
-CFLAGS = -Wall -Werror -I$(IDIR)
+CFLAGS = -Wall -Werror -I$(IDIR) -lpthread -D DEBUG=1
 
 DEPS := $(wildcard $(IDIR)/*.h)
 OBJS := $(patsubst $(SDIR)/%.c,$(ODIR)/%.o,$(wildcard $(SDIR)/*.c))

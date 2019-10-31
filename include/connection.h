@@ -20,7 +20,7 @@ int cdt_connection_create(cdt_connection *connection, int fd);
  * 
  * Returns 0 on success, -1 on error.
  */
-int cdt_connection_connect(cdt_connection *connection, const char *address, int port);
+int cdt_connection_connect(cdt_connection *connection, const char *address, const char *port);
 
 /**
  * Close the connection.
