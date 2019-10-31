@@ -4,7 +4,7 @@
 #include "util.h"
 #include "connection.h"
 
-int extract_location_from_addr(int family, struct sockaddr *addr, cdt_connection *connection) {
+int extract_location_from_addr(int family, struct sockaddr *addr, cdt_connection_t *connection) {
   if (family == AF_INET) {
 
     struct sockaddr_in *s = (struct sockaddr_in *)addr;
@@ -26,11 +26,11 @@ int extract_location_from_addr(int family, struct sockaddr *addr, cdt_connection
   return 0;
 }
 
-int cdt_connection_create(cdt_connection *connection, int fd, struct sockaddr_storage *addr) {
+int cdt_connection_create(cdt_connection_t *connection, int fd, struct sockaddr_storage *addr) {
   if (fd < 0)
     return -1;
 
-  memset(connection, 0, sizeof(cdt_connection));
+  memset(connection, 0, sizeof(cdt_connection_t));
   connection->fd = fd;
 
   if (extract_location_from_addr(addr->ss_family, (struct sockaddr*)addr, connection) != 0) {
@@ -42,7 +42,7 @@ int cdt_connection_create(cdt_connection *connection, int fd, struct sockaddr_st
   return 0;
 }
 
-int cdt_connection_connect(cdt_connection *connection, const char *address, const char *port) {
+int cdt_connection_connect(cdt_connection_t *connection, const char *address, const char *port) {
   struct addrinfo hints;
 
   memset(&hints, 0, sizeof(struct addrinfo));
@@ -58,7 +58,7 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, cons
     return -1;
   }
 
-  memset(connection, 0, sizeof(cdt_connection));
+  memset(connection, 0, sizeof(cdt_connection_t));
 
   struct addrinfo *rp;
   int sfd;
@@ -91,16 +91,16 @@ int cdt_connection_connect(cdt_connection *connection, const char *address, cons
   return 0;
 }
 
-void cdt_connection_close(cdt_connection *connection) {
+void cdt_connection_close(cdt_connection_t *connection) {
   shutdown(connection->fd, SHUT_RDWR);
   close(connection->fd);
   connection->fd = -1;
 }
 
-int cdt_connection_read(const cdt_connection *connection, char *data, size_t length) {
+int cdt_connection_read(const cdt_connection_t *connection, char *data, size_t length) {
   return read(connection->fd, data, length);
 }
 
-int cdt_connection_write(const cdt_connection *connection, const char *data, size_t length) {
+int cdt_connection_write(const cdt_connection_t *connection, const char *data, size_t length) {
   return write(connection->fd, data, length);
 }

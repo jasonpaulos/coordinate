@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (hostIndex) {
-    cdt_server server;
+    cdt_server_t server;
     if (cdt_server_create(&server, address, port) == -1) {
       fprintf(stderr, "Cannot create server\n");
       return -1;
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     pthread_join(thread, NULL);
 
   } else {
-    cdt_connection connection;
+    cdt_connection_t connection;
     if (cdt_connection_connect(&connection, address, port) == -1) {
       fprintf(stderr, "Error connecting to server\n");
       return -1;

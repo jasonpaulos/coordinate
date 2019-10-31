@@ -3,11 +3,11 @@
 
 #include <pthread.h>
 
-typedef struct cdt_server cdt_server;
+typedef struct cdt_server_t cdt_server_t;
 
 /**
  * Start a host thread with a listening server.
  */
-int cdt_host_start(pthread_t *thread, cdt_server *server);
+int cdt_host_start(pthread_t *thread, cdt_server_t *server);
 
 #endif

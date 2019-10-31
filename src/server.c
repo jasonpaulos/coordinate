@@ -5,7 +5,7 @@
 #include "connection.h"
 #include "server.h"
 
-int cdt_server_create(cdt_server *server, const char *address, const char *port) {
+int cdt_server_create(cdt_server_t *server, const char *address, const char *port) {
   struct addrinfo hints;
 
   memset(&hints, 0, sizeof(struct addrinfo));
@@ -44,21 +44,21 @@ int cdt_server_create(cdt_server *server, const char *address, const char *port)
     return -1;
   }
 
-  memset(server, 0, sizeof(cdt_server));
+  memset(server, 0, sizeof(cdt_server_t));
   server->fd = sfd;
   return 0;
 }
 
-int cdt_server_listen(cdt_server *server, int queue) {
+int cdt_server_listen(cdt_server_t *server, int queue) {
   return listen(server->fd, queue);
 }
 
-void cdt_server_close(cdt_server *server) {
+void cdt_server_close(cdt_server_t *server) {
   close(server->fd);
   server->fd = -1;
 }
 
-int cdt_server_accept(const cdt_server *server, cdt_connection *connection) {
+int cdt_server_accept(const cdt_server_t *server, cdt_connection_t *connection) {
   struct sockaddr_storage addr;
   socklen_t len = sizeof(struct sockaddr_storage);
   int connfd = accept(server->fd, (struct sockaddr*)&addr, &len);

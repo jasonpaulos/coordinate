@@ -4,11 +4,11 @@
 #include "host.h"
 
 void* cdt_host_thread(void *arg) {
-  cdt_server *server = (cdt_server*)arg;
+  cdt_server_t *server = (cdt_server_t*)arg;
 
   printf("Server started\n");
 
-  cdt_connection connection;
+  cdt_connection_t connection;
   while (cdt_server_accept(server, &connection) == 0) {
     printf("Client connected from %s:%d\n", connection.address, connection.port);
     char buffer[100];
@@ -19,6 +19,6 @@ void* cdt_host_thread(void *arg) {
   return 0;
 }
 
-int cdt_host_start(pthread_t *thread, cdt_server *server) {
+int cdt_host_start(pthread_t *thread, cdt_server_t *server) {
   return pthread_create(thread, NULL, cdt_host_thread, (void*)server);
 }
