@@ -64,12 +64,16 @@ int main(int argc, char *argv[]) {
 
     printf("Listening at %s:%s\n", address == NULL ? "*" : address, port);
 
-    pthread_t thread;
-    if (cdt_host_start(&thread, &server) == -1) {
+    cdt_host_t host;
+    memset(&host, 0, sizeof(host));
+    host.manager = 1;
+    host.server = &server;
+
+    if (cdt_host_start(&host, &server, 1) == -1) {
       fprintf(stderr, "Cannot start host thread\n");
       return -1;
     }
-    pthread_join(thread, NULL);
+    cdt_host_join(&host);
 
   } else {
     cdt_connection_t connection;

@@ -1,24 +1,33 @@
 #include <stdio.h>
+#include <string.h>
 #include "server.h"
 #include "connection.h"
 #include "host.h"
 
 void* cdt_host_thread(void *arg) {
-  cdt_server_t *server = (cdt_server_t*)arg;
+  cdt_host_t *host = (cdt_host_t*)arg;
 
   printf("Server started\n");
 
-  cdt_connection_t connection;
-  while (cdt_server_accept(server, &connection) == 0) {
-    printf("Client connected from %s:%d\n", connection.address, connection.port);
+  host->peers[0].self = 1;
+  host->num_peers = 1;
+
+  cdt_connection_t *connection;
+  while (host->num_peers < CDT_MAX_MACHINES && cdt_server_accept(host->server, connection = &host->peers[host->num_peers].connection) == 0) {
+    printf("Client connected from %s:%d\n", connection->address, connection->port);
     char buffer[100];
-    int n = cdt_connection_read(&connection, buffer, sizeof(buffer));
+    int n = cdt_connection_read(connection, buffer, sizeof(buffer));
     printf("Read %d characters: %s", n, buffer);
+    host->num_peers++;
   }
 
-  return 0;
+  return NULL;
 }
 
-int cdt_host_start(pthread_t *thread, cdt_server_t *server) {
-  return pthread_create(thread, NULL, cdt_host_thread, (void*)server);
+int cdt_host_start(cdt_host_t *host) {
+  return pthread_create(&host->server_thread, NULL, cdt_host_thread, (void*)host);
+}
+
+void cdt_host_join(cdt_host_t *host) {
+  pthread_join(host->server_thread, NULL);
 }
