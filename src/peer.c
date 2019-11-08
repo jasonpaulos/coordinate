@@ -12,7 +12,7 @@ int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer
   }
 
   cdt_packet_t packet;
-  if (cdt_packet_existing_peer_create(&packet, host->self_id) != 0 || cdt_connection_receive(&peer->connection, &packet) != 0) {
+  if (cdt_packet_existing_peer_create(&packet, host->self_id) != 0 || cdt_connection_send(&peer->connection, &packet) != 0) {
     debug_print("Error greeting peer %d at %s:%s\n", peer_id, peer_address, peer_port);
     cdt_connection_close(&peer->connection);
     return -1;
@@ -37,7 +37,7 @@ void* cdt_peer_thread(void *arg) {
 
   while(1) {
     cdt_packet_t packet;
-    if (cdt_connection_send(&peer->connection, &packet) != 0) {
+    if (cdt_connection_receive(&peer->connection, &packet) != 0) {
       fprintf(stderr, "Error reading connection from %s:%d\n", peer->connection.address, peer->connection.port);
       break;
     }

@@ -90,12 +90,12 @@ int main(int argc, char *argv[]) {
       return -1;
     }
 
-    if (cdt_connection_receive(&manager_connection, &packet) != 0) {
+    if (cdt_connection_send(&manager_connection, &packet) != 0) {
       fprintf(stderr, "Failed to send self identify packet\n");
       return -1;
     }
 
-    if (cdt_connection_send(&manager_connection, &packet) != 0 || cdt_packet_peer_id_assign_parse(&packet, &host.self_id)) {
+    if (cdt_connection_receive(&manager_connection, &packet) != 0 || cdt_packet_peer_id_assign_parse(&packet, &host.self_id)) {
       fprintf(stderr, "Failed to get peer id assign packet\n");
       return -1;
     }
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
     printf("Assigned machine id %d\n", host.self_id);
 
     cdt_packet_peer_id_confim_create(&packet);
-    if (cdt_connection_receive(&manager_connection, &packet) != 0) {
+    if (cdt_connection_send(&manager_connection, &packet) != 0) {
       fprintf(stderr, "Failed to send peer id confirmation packet\n");
       return -1;
     }

@@ -33,17 +33,17 @@ int cdt_connection_connect(cdt_connection_t *connection, const char *address, co
 void cdt_connection_close(cdt_connection_t *connection);
 
 /**
- * Send a packet along this connection. This operation will block until the packet is completely sent, or an error occurs.
- * 
- * Returns 0 on success, or -1 on error.
- */
-int cdt_connection_send(const cdt_connection_t *connection, cdt_packet_t *packet);
-
-/**
  * Receive a packet from this connection. This operation will block until the packet is completely received, or an error occurs.
  * 
  * Returns 0 on success, or -1 on error.
  */
-int cdt_connection_receive(const cdt_connection_t *connection, const cdt_packet_t *packet);
+int cdt_connection_receive(const cdt_connection_t *connection, cdt_packet_t *packet);
+
+/**
+ * Send a packet along this connection. This operation will block until the packet is completely sent, or an error occurs.
+ * 
+ * Returns 0 on success, or -1 on error.
+ */
+int cdt_connection_send(const cdt_connection_t *connection, const cdt_packet_t *packet);
 
 #endif

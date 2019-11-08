@@ -17,7 +17,7 @@ void* cdt_host_thread(void *arg) {
     printf("Client connected from %s:%d\n", connection.address, connection.port);
     
     cdt_packet_t packet;
-    if (cdt_connection_send(&connection, &packet) != 0) {
+    if (cdt_connection_receive(&connection, &packet) != 0) {
       fprintf(stderr, "Error reading packet from %s:%d\n", connection.address, connection.port);
       cdt_connection_close(&connection);
       continue;
@@ -49,14 +49,14 @@ void* cdt_host_thread(void *arg) {
         continue;
       }
 
-      if (cdt_connection_receive(&connection, &auxiliary_packet) != 0) {
+      if (cdt_connection_send(&connection, &auxiliary_packet) != 0) {
         fprintf(stderr, "Failed to send assign id packet to %s:%d\n", connection.address, connection.port);
         cdt_connection_close(&connection);
         continue;
       }
 
       // TODO: it would be good to enforce a read timeout here
-      if (cdt_connection_send(&connection, &auxiliary_packet) != 0 || auxiliary_packet.type != CDT_PACKET_PEER_ID_CONFIRM) {
+      if (cdt_connection_receive(&connection, &auxiliary_packet) != 0 || auxiliary_packet.type != CDT_PACKET_PEER_ID_CONFIRM) {
         fprintf(stderr, "Failed to receive confirmation packet from %s:%d\n", connection.address, connection.port);
         cdt_connection_close(&connection);
         continue;
@@ -74,7 +74,7 @@ void* cdt_host_thread(void *arg) {
 
         printf("Connecting peer %d to new peer %d (%s:%s)\n", i, peer->id, address, port);
 
-        if (cdt_connection_receive(&other->connection, &auxiliary_packet) != 0) {
+        if (cdt_connection_send(&other->connection, &auxiliary_packet) != 0) {
           fprintf(stderr, "Error connecting peer %d to %s:%s\n", i, address, port);
         }
       }

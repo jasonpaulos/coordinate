@@ -98,7 +98,7 @@ void cdt_connection_close(cdt_connection_t *connection) {
   connection->fd = -1;
 }
 
-int cdt_connection_send(const cdt_connection_t *connection, cdt_packet_t *packet) {
+int cdt_connection_receive(const cdt_connection_t *connection, cdt_packet_t *packet) {
   int left_to_read = 2 * sizeof(int);
   void *data = (void*)packet;
   while (left_to_read > 0) {
@@ -127,7 +127,7 @@ int cdt_connection_send(const cdt_connection_t *connection, cdt_packet_t *packet
   return 0;
 }
 
-int cdt_connection_receive(const cdt_connection_t *connection, const cdt_packet_t *packet) {
+int cdt_connection_send(const cdt_connection_t *connection, const cdt_packet_t *packet) {
   int size_and_type[] = {
     htonl(packet->size),
     htonl(packet->type)
