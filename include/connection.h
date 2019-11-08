@@ -2,6 +2,8 @@
 #define COORDINATE_CONNECTION_H
 #include <arpa/inet.h>
 
+typedef struct cdt_packet_t cdt_packet_t;
+
 /**
  * An object that represents a coodinate connection.
  */
@@ -31,17 +33,17 @@ int cdt_connection_connect(cdt_connection_t *connection, const char *address, co
 void cdt_connection_close(cdt_connection_t *connection);
 
 /**
- * Perform a blocking read on the connection.
+ * Send a packet along this connection. This operation will block until the packet is completely sent, or an error occurs.
  * 
- * Returns the number of bytes read, -1 on error, and 0 on connection close.
+ * Returns 0 on success, or -1 on error.
  */
-int cdt_connection_read(const cdt_connection_t *connection, char *data, size_t length);
+int cdt_connection_send(const cdt_connection_t *connection, cdt_packet_t *packet);
 
 /**
- * Perform a blocking write on the connection.
+ * Receive a packet from this connection. This operation will block until the packet is completely received, or an error occurs.
  * 
- * Returns the number of bytes written, or -1 on error.
+ * Returns 0 on success, or -1 on error.
  */
-int cdt_connection_write(const cdt_connection_t *connection, const char *data, size_t length);
+int cdt_connection_receive(const cdt_connection_t *connection, const cdt_packet_t *packet);
 
 #endif

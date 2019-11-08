@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "util.h"
+#include "packet.h"
 #include "connection.h"
 
 int extract_location_from_addr(int family, struct sockaddr *addr, cdt_connection_t *connection) {
@@ -97,10 +98,61 @@ void cdt_connection_close(cdt_connection_t *connection) {
   connection->fd = -1;
 }
 
-int cdt_connection_read(const cdt_connection_t *connection, char *data, size_t length) {
-  return read(connection->fd, data, length);
+int cdt_connection_send(const cdt_connection_t *connection, cdt_packet_t *packet) {
+  int left_to_read = 2 * sizeof(int);
+  void *data = (void*)packet;
+  while (left_to_read > 0) {
+    int n = read(connection->fd, data, left_to_read);
+    if (n <= 0) return -1;
+
+    left_to_read -= n;
+    data += n;
+  }
+
+  packet->size = ntohl(packet->size);
+  packet->type = ntohl(packet->type);
+  
+  if (packet->size < 0 || packet->size > CDT_PACKET_DATA_SIZE || packet->type < 0)
+    return -1;
+
+  left_to_read = packet->size;
+  while (left_to_read > 0) {
+    int n = read(connection->fd, data, left_to_read);
+    if (n <= 0) return -1;
+
+    left_to_read -= n;
+    data += n;
+  }
+
+  return 0;
 }
 
-int cdt_connection_write(const cdt_connection_t *connection, const char *data, size_t length) {
-  return write(connection->fd, data, length);
+int cdt_connection_receive(const cdt_connection_t *connection, const cdt_packet_t *packet) {
+  int size_and_type[] = {
+    htonl(packet->size),
+    htonl(packet->type)
+  };
+
+  int left_to_write = sizeof(size_and_type);
+  const void *data = (void*)size_and_type;
+  while (left_to_write > 0) {
+    int n = write(connection->fd, data, left_to_write);
+    if (n <= 0) return -1;
+
+    left_to_write -= n;
+    data += n;
+  }
+
+  left_to_write = packet->size;
+  data = (void*)packet + sizeof(size_and_type);
+
+  while (left_to_write > 0) {
+    int n = write(connection->fd, data, left_to_write);
+    if (n <= 0) return -1;
+
+    left_to_write -= n;
+    data += n;
+  }
+
+  return 0;
 }
