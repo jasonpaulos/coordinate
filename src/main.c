@@ -3,84 +3,137 @@
 #include <stdlib.h>
 #include "server.h"
 #include "connection.h"
+#include "packet.h"
 #include "host.h"
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s [OPTION]... COMMAND [INITIAL_ARGS]...\n", argv[0]);
+    fprintf(stderr, "Usage: %s --host IP:PORT [--connect IP:PORT] COMMAND [INITIAL_ARGS]...\n", argv[0]);
     return -1;
   }
 
-  int hostIndex = 0;
+  int host_index = 0;
   for (int i = 1; i < argc - 1; i++) {
     if (strcmp(argv[i], "--host") == 0) {
-      hostIndex = i + 1;
+      host_index = i + 1;
       break;
     }
   }
 
-  int connectionIndex = 0;
+  int connection_index = 0;
   for (int i = 1; i < argc - 1; i++) {
     if (strcmp(argv[i], "--connect") == 0) {
-      connectionIndex = i + 1;
+      connection_index = i + 1;
       break;
     }
   }
 
-  if (!hostIndex && !connectionIndex) {
-    fprintf(stderr, "Must specify one of --host IP:PORT or --connect IP:PORT options.\n");
-    return -1;
-  } else if (hostIndex && connectionIndex) {
-    fprintf(stderr, "Cannot specifiy both --host and --connect options.\n");
+  if (!host_index) {
+    fprintf(stderr, "Missing --host option\n");
     return -1;
   }
 
-  char *port;
-  char *address = argv[hostIndex | connectionIndex];
-  char *lastColon = strrchr(address, ':');
+  char *host_port;
+  char *host_address = argv[host_index];
+  char *lastColon = strrchr(host_address, ':');
   if (lastColon == NULL) {
-    if (!hostIndex) {
-      fprintf(stderr, "Unable to parse address: %s\n", address);
+    fprintf(stderr, "Unable to parse address: %s\n", host_address);
+    return -1;
+  }
+  host_port = lastColon + 1;
+  *lastColon = 0;
+
+  char *connection_port = NULL;
+  char *connection_address = NULL;
+  if (connection_index) {
+    connection_address = argv[connection_index];
+    lastColon = strrchr(connection_address, ':');
+    if (lastColon == NULL) {
+      fprintf(stderr, "Unable to parse address: %s\n", connection_address);
       return -1;
     }
 
-    port = address;
-    address = NULL;
-  } else {
-    port = lastColon + 1;
+    connection_port = lastColon + 1;
     *lastColon = 0;
   }
 
-  if (hostIndex) {
-    cdt_server_t server;
-    if (cdt_server_create(&server, address, port) == -1) {
-      fprintf(stderr, "Cannot create server\n");
-      return -1;
-    }
-    if (cdt_server_listen(&server, 10) == -1) {
-      fprintf(stderr, "Server cannot listen\n");
-      return -1;
-    }
+  cdt_server_t server;
+  if (cdt_server_create(&server, host_address, host_port) == -1) {
+    fprintf(stderr, "Cannot create server\n");
+    return -1;
+  }
+  if (cdt_server_listen(&server, 10) == -1) {
+    fprintf(stderr, "Server cannot listen\n");
+    return -1;
+  }
 
-    printf("Listening at %s:%s\n", address == NULL ? "*" : address, port);
+  printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
 
-    pthread_t thread;
-    if (cdt_host_start(&thread, &server) == -1) {
-      fprintf(stderr, "Cannot start host thread\n");
-      return -1;
-    }
-    pthread_join(thread, NULL);
+  cdt_host_t host;
+  memset(&host, 0, sizeof(host));
+  host.manager = connection_index == 0;
+  host.server = &server;
+  host.peers_to_be_connected = ~1;
 
-  } else {
-    cdt_connection_t connection;
-    if (cdt_connection_connect(&connection, address, port) == -1) {
+  if (connection_index) {
+    cdt_connection_t manager_connection;
+
+    if (cdt_connection_connect(&manager_connection, connection_address, connection_port) == -1) {
       fprintf(stderr, "Error connecting to server\n");
       return -1;
     }
-    printf("Connected to %s:%s\n", address, port);
+    printf("Connected to %s:%s\n", connection_address, connection_port);
 
-    char message[] = "Hello world!\n";
-    int n = cdt_connection_write(&connection, message, sizeof(message));
-    printf("Wrote %d characters\n", n);
+    cdt_packet_t packet;
+    if (cdt_packet_self_identify_create(&packet, host_address, host_port) != 0) {
+      fprintf(stderr, "Cannot create self identify packet\n");
+      return -1;
+    }
+
+    if (cdt_connection_send(&manager_connection, &packet) != 0) {
+      fprintf(stderr, "Failed to send self identify packet\n");
+      return -1;
+    }
+
+    if (cdt_connection_receive(&manager_connection, &packet) != 0 || cdt_packet_peer_id_assign_parse(&packet, &host.self_id)) {
+      fprintf(stderr, "Failed to get peer id assign packet\n");
+      return -1;
+    }
+
+    printf("Assigned machine id %d\n", host.self_id);
+
+    cdt_packet_peer_id_confim_create(&packet);
+    if (cdt_connection_send(&manager_connection, &packet) != 0) {
+      fprintf(stderr, "Failed to send peer id confirmation packet\n");
+      return -1;
+    }
+
+    host.peers[0].connection = manager_connection;
+    host.peers[0].host = &host;
+    host.peers_to_be_connected &= ((1 << host.self_id) - 1); // initialize to 1s between 0 (exclusive) and host.self_id (exclusive)
+    cdt_peer_start(&host.peers[0]);
+
+    printf("Connection successful\n");
   }
+
+  if (cdt_host_start(&host) == -1) {
+    fprintf(stderr, "Cannot start host thread\n");
+    return -1;
+  }
+
+  cdt_host_join(&host);
+
+  printf("Peers done connecting\n");
+
+  for (int i = 0; i < host.num_peers; i++) {
+    cdt_peer_t *peer = &host.peers[i];
+    if (peer->id == host.self_id) continue;
+
+    cdt_peer_join(peer);
+    cdt_connection_close(&peer->connection);
+  }
+
+  cdt_server_close(&server);
+
+  return 0;
 }
