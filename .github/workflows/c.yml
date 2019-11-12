@@ -1,12 +1,8 @@
-name: C CI
-on: [push, pull_request]
+name: Coordinate CI
+on: [push]
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macOS-latest]
+    runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
     - name: make
