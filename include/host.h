@@ -7,6 +7,9 @@ typedef struct cdt_server_t cdt_server_t;
 
 #define CDT_MAX_MACHINES 32
 #define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
+#define INVALID_PAGE 0
+#define READ_ONLY_PAGE 1
+#define READ_WRITE_PAGE 2
 
 
 /* Pagetable entry for a single page in a machine's page table (NOT the manager). 
