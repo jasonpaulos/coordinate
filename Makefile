@@ -15,7 +15,10 @@ $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
 $(ODIR)/coordinate: $(OBJS)
 	$(CC) -g -o $@ $^ $(CFLAGS)
 
-.PHONY: clean
+.PHONY: clean gdb
+
+gdb: $(ODIR)/coordinate
+	gdbserver :26100 $(ODIR)/coordinate $(ARGS)
 
 clean:
 	rm -rf $(ODIR)

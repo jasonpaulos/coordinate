@@ -23,6 +23,26 @@
           "ignoreFailures": true
         }
       ]
+    },
+    {
+      "name": "(gdb) Remote Launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/coordinate",
+      "args": ["--host", "localhost:8000"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/src",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "miDebuggerServerAddress": "localhost:26100"
     }
   ]
 }
