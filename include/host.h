@@ -9,7 +9,8 @@ typedef struct cdt_server_t cdt_server_t;
 #define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
 
 
-/* Pagetable entry for a single page in a machine's page table (NOT the manager). */
+/* Pagetable entry for a single page in a machine's page table (NOT the manager). 
+   The PTE must be locked before being accessed in any way. */
 typedef struct cdt_host_pte_t {
   int in_use;
   uint64_t shared_va;
@@ -17,6 +18,7 @@ typedef struct cdt_host_pte_t {
   int access;
   /* if access = INVALID then page = NULL */
   void * page;
+  pthread_mutex_t lock;
 } cdt_host_pte_t;
 
 /* Pagetable entry for a single page in the manager's page table. 
