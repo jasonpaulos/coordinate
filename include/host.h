@@ -11,6 +11,7 @@ typedef struct cdt_server_t cdt_server_t;
 
 /* Pagetable entry for a single page in a machine's page table (NOT the manager). */
 typedef struct cdt_host_pte_t {
+  int in_use;
   uint64_t shared_va;
   /* access is one of READ_ONLY, READ_WRITE, and INVALID */
   int access;
@@ -21,6 +22,7 @@ typedef struct cdt_host_pte_t {
 /* Pagetable entry for a single page in the manager's page table. 
    The PTE must be locked before being accessed in any way. */
 typedef struct cdt_manager_pte_t {
+  int in_use;
   uint64_t shared_va; 
   /* The set of machines that have read access. 
      Each entry is 0 or 1 indicating no access or read access */
@@ -30,7 +32,7 @@ typedef struct cdt_manager_pte_t {
   int writer;
   /* Pointer to the page itself */
   void * page;
-  pthread_mutex_t * lock;
+  pthread_mutex_t lock;
 } cdt_manager_pte_t;
 
 typedef struct cdt_host_t {
