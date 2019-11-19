@@ -10,6 +10,23 @@ void* cdt_host_thread(void *arg) {
 
   printf("Server started\n");
 
+  // Initialize all the locks for appropriate pagetable.
+  if (host->manager) {
+    for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
+      if (pthread_mutex_init(&host->manager_pagetable[i].lock, NULL) != 0) { 
+        fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
+        return NULL;
+      } 
+    }
+  } else {
+    for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
+      if (pthread_mutex_init(&host->shared_pagetable[i].lock, NULL) != 0) { 
+        fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
+        return NULL;
+      } 
+    }
+  }
+
   host->num_peers = host->manager ? 1 : 2;
 
   cdt_connection_t connection;

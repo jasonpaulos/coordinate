@@ -6,6 +6,39 @@
 typedef struct cdt_server_t cdt_server_t;
 
 #define CDT_MAX_MACHINES 32
+#define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
+#define INVALID_PAGE 0
+#define READ_ONLY_PAGE 1
+#define READ_WRITE_PAGE 2
+
+
+/* Pagetable entry for a single page in a machine's page table (NOT the manager). 
+   The PTE must be locked before being accessed in any way. */
+typedef struct cdt_host_pte_t {
+  int in_use;
+  uint64_t shared_va;
+  /* access is one of READ_ONLY, READ_WRITE, and INVALID */
+  int access;
+  /* if access = INVALID then page = NULL */
+  void * page;
+  pthread_mutex_t lock;
+} cdt_host_pte_t;
+
+/* Pagetable entry for a single page in the manager's page table. 
+   The PTE must be locked before being accessed in any way. */
+typedef struct cdt_manager_pte_t {
+  int in_use;
+  uint64_t shared_va; 
+  /* The set of machines that have read access. 
+     Each entry is 0 or 1 indicating no access or read access */
+  int read_set[CDT_MAX_MACHINES]; 
+  /* The machine ID with R/W access. If this is -1, there is no writer. 
+     If this is >=0 then read_set must be all zeros */
+  int writer;
+  /* Pointer to the page itself */
+  void * page;
+  pthread_mutex_t lock;
+} cdt_manager_pte_t;
 
 typedef struct cdt_host_t {
   /* Will be 1 if this machine is the manager, otherwise 0. */
@@ -19,6 +52,9 @@ typedef struct cdt_host_t {
   /* Each bit represents whether a peer is waiting to be connected. */
   int peers_to_be_connected;
   cdt_peer_t peers[CDT_MAX_MACHINES];
+  cdt_host_pte_t shared_pagetable[CDT_MAX_SHARED_PAGES];
+  /* This array is only valid if the host is the manager. */
+  cdt_manager_pte_t manager_pagetable[CDT_MAX_SHARED_PAGES];
 } cdt_host_t;
 
 /**
