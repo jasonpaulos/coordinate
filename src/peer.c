@@ -3,6 +3,8 @@
 #include "packet.h"
 #include "host.h"
 
+extern cdt_host_t host;
+
 int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer_address, const char *peer_port) {
   cdt_peer_t *peer = &host->peers[peer_id];
 
@@ -56,6 +58,16 @@ void* cdt_peer_thread(void *arg) {
       }
 
       printf("Greeted new peer %d at %s:%s\n", peer_id, address, port);
+    }
+    
+    if (packet.type == CDT_PACKET_ALLOC_REQ && host.manager == 1) { // only the manager can allocate a page
+      int peer_id;
+      if (cdt_packet_alloc_req_parse(&packet, &peer_id) != 0) {
+        fprintf(stderr, "Failed to parse allocation request packet from %s:%d\n", peer->connection.address, peer->connection.port);
+        break;
+      }
+
+      printf("Received allocation request from peer %d\n", peer_id);
     }
 
     // TODO: handle other packets

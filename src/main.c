@@ -5,6 +5,10 @@
 #include "connection.h"
 #include "packet.h"
 #include "host.h"
+#include "coordinate.h"
+
+cdt_host_t host;
+cdt_connection_t manager_connection;
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -69,15 +73,12 @@ int main(int argc, char *argv[]) {
 
   printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
 
-  cdt_host_t host;
   memset(&host, 0, sizeof(host));
   host.manager = connection_index == 0;
   host.server = &server;
   host.peers_to_be_connected = ~1;
 
   if (connection_index) {
-    cdt_connection_t manager_connection;
-
     if (cdt_connection_connect(&manager_connection, connection_address, connection_port) == -1) {
       fprintf(stderr, "Error connecting to server\n");
       return -1;

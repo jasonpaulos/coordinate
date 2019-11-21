@@ -11,6 +11,9 @@ enum cdt_packet_type {
   CDT_PACKET_NEW_PEER,
   CDT_PACKET_EXISTING_PEER,
 
+  CDT_PACKET_ALLOC_REQ,
+  CDT_PACKET_ALLOC_RESP,
+
   CDT_PACKET_READ_REQ,
   CDT_PACKET_READ_RESP,
   CDT_PACKET_READ_INVALIDATE_REQ,
@@ -49,6 +52,12 @@ int cdt_packet_new_peer_parse(cdt_packet_t *packet, int *peer_id, char **address
 
 int cdt_packet_existing_peer_create(cdt_packet_t *packet, int peer_id);
 int cdt_packet_existing_peer_parse(cdt_packet_t *packet, int *peer_id);
+
+int cdt_packet_alloc_req_create(cdt_packet_t *packet, int peer_id);
+int cdt_packet_alloc_req_parse(cdt_packet_t *packet, int *peer_id);
+
+int cdt_packet_alloc_resp_create(cdt_packet_t *packet, void* page);
+int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, void * page);
 
 int cdt_packet_read_req_create(cdt_packet_t *packet, unsigned long page_addr);
 int cdt_packet_read_req_parse(cdt_packet_t *packet, unsigned long *page_addr);
