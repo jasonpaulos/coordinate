@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#include "thread.h"
+
 /**
  * Allocates size bytes of shared memory and returns a pointer to the allocated memory.
  */

@@ -60,6 +60,9 @@ typedef struct cdt_host_t {
   cdt_host_pte_t shared_pagetable[CDT_MAX_SHARED_PAGES];
   /* This array is only valid if the host is the manager. */
   cdt_manager_pte_t manager_pagetable[CDT_MAX_SHARED_PAGES];
+
+  int num_threads;
+  cdt_thread_t *threads[CDT_MAX_MACHINES];
 } cdt_host_t;
 
 /**
