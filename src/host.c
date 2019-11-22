@@ -56,18 +56,10 @@ void* cdt_host_thread(void *arg) {
       peer->id = host->num_peers;
 
       char *address, *port;
-      if (cdt_packet_self_identify_parse(&packet, &address, &port) != 0) {
-        fprintf(stderr, "Unable to parse self identify packet from %s:%d\n", connection.address, connection.port);
-        cdt_connection_close(&connection);
-        continue;
-      }
+      cdt_packet_self_identify_parse(&packet, &address, &port);
 
       cdt_packet_t auxiliary_packet;
-      if (cdt_packet_peer_id_assign_create(&auxiliary_packet, peer->id) != 0) {
-        fprintf(stderr, "Unable to create peer assign id packet for %s:%d\n", connection.address, connection.port);
-        cdt_connection_close(&connection);
-        continue;
-      }
+      cdt_packet_peer_id_assign_create(&auxiliary_packet, peer->id);
 
       if (cdt_connection_send(&connection, &auxiliary_packet) != 0) {
         fprintf(stderr, "Failed to send assign id packet to %s:%d\n", connection.address, connection.port);
@@ -105,12 +97,8 @@ void* cdt_host_thread(void *arg) {
         continue;
       }
 
-      int peer_id;
-      if (cdt_packet_existing_peer_parse(&packet, &peer_id) != 0) {
-        fprintf(stderr, "Unable to parse existing peer packet from %s:%d\n", connection.address, connection.port);
-        cdt_connection_close(&connection);
-        continue;
-      }
+      uint32_t peer_id;
+      cdt_packet_existing_peer_parse(&packet, &peer_id);
 
       if (peer_id <= 0 || peer_id > CDT_MAX_MACHINES || peer_id == host->self_id) {
         fprintf(stderr, "Invalid peer id %d from %s:%d\n", peer_id, connection.address, connection.port);

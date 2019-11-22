@@ -2,6 +2,7 @@
 #define COORDINATE_HOST_H
 
 #include "peer.h"
+#include "thread.h"
 
 typedef struct cdt_server_t cdt_server_t;
 
@@ -52,10 +53,10 @@ typedef struct cdt_host_t {
   pthread_t server_thread;
 
   /* The id of this machine. Will be 0 if this is the manager. */
-  int self_id;
+  uint32_t self_id;
   int num_peers;
   /* Each bit represents whether a peer is waiting to be connected. */
-  int peers_to_be_connected;
+  uint32_t peers_to_be_connected;
   cdt_peer_t peers[CDT_MAX_MACHINES];
   cdt_host_pte_t shared_pagetable[CDT_MAX_SHARED_PAGES];
   /* This array is only valid if the host is the manager. */

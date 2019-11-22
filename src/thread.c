@@ -6,6 +6,15 @@
 
 extern cdt_host_t* get_host();
 
+int cdt_thread_create_local(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
+  return pthread_create(&thread->id, NULL, start_routine, arg);
+}
+
+int cdt_thread_create_remote(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
+  // TODO
+  return -1;
+}
+
 int cdt_thread_create(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
   cdt_host_t *host = get_host();
 
@@ -35,11 +44,11 @@ int cdt_thread_create(cdt_thread_t *thread, void *(*start_routine) (void *), voi
   return res;
 }
 
-int cdt_thread_create_local(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
-  return pthread_create(&thread->id, NULL, start_routine, arg);
+int cdt_thread_join_local(cdt_thread_t *thread, void **return_value) {
+  return pthread_join(thread->id, return_value);
 }
 
-int cdt_thread_create_remote(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
+int cdt_thread_join_remote(cdt_thread_t *thread, void **return_value) {
   // TODO
   return -1;
 }
@@ -50,13 +59,4 @@ int cdt_thread_join(cdt_thread_t *thread, void **return_value) {
 #else
   return cdt_thread_join_remote(thread, return_value);
 #endif
-}
-
-int cdt_thread_join_local(cdt_thread_t *thread, void **return_value) {
-  return pthread_join(thread->id, return_value);
-}
-
-int cdt_thread_join_remote(cdt_thread_t *thread, void **return_value) {
-  // TODO
-  return -1;
 }

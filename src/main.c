@@ -99,10 +99,12 @@ int main(int argc, char *argv[]) {
       return -1;
     }
 
-    if (cdt_connection_receive(&manager_connection, &packet) != 0 || cdt_packet_peer_id_assign_parse(&packet, &host.self_id)) {
+    if (cdt_connection_receive(&manager_connection, &packet) != 0) {
       fprintf(stderr, "Failed to get peer id assign packet\n");
       return -1;
     }
+
+    cdt_packet_peer_id_assign_parse(&packet, &host.self_id);
 
     printf("Assigned machine id %d\n", host.self_id);
 

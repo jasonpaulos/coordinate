@@ -19,7 +19,8 @@ int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer
   }
 
   cdt_packet_t packet;
-  if (cdt_packet_existing_peer_create(&packet, host->self_id) != 0 || cdt_connection_send(&peer->connection, &packet) != 0) {
+  cdt_packet_existing_peer_create(&packet, host->self_id);
+  if (cdt_connection_send(&peer->connection, &packet) != 0) {
     debug_print("Error greeting peer %d at %s:%s\n", peer_id, peer_address, peer_port);
     cdt_connection_close(&peer->connection);
     return -1;
@@ -114,12 +115,9 @@ void* cdt_peer_thread(void *arg) {
     }
 
     if (packet.type == CDT_PACKET_NEW_PEER && peer->id == 0) { // only the manager (peer 0) can notify of new peers
-      int peer_id;
+      uint32_t peer_id;
       char *address, *port;
-      if (cdt_packet_new_peer_parse(&packet, &peer_id, &address, &port) != 0) {
-        fprintf(stderr, "Failed to parse new peer packet from %s:%d\n", peer->connection.address, peer->connection.port);
-        break;
-      }
+      cdt_packet_new_peer_parse(&packet, &peer_id, &address, &port);
       
       if (cdt_peer_greet_existing_peer(peer->host, peer_id, address, port) != 0) {
         fprintf(stderr, "Failed to greet new peer at %s:%s\n", address, port);
