@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "server.h"
 #include "connection.h"
 #include "packet.h"
@@ -10,13 +11,14 @@ void* cdt_host_thread(void *arg) {
 
   printf("Server started\n");
 
-  // Initialize all the locks for appropriate pagetable.
+  // Initialize all the locks and virtual addresses for appropriate pagetable
   if (host->manager) {
     for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
       if (pthread_mutex_init(&host->manager_pagetable[i].lock, NULL) != 0) { 
         fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
         return NULL;
       } 
+      host->manager_pagetable[i].shared_va = i * getpagesize() + CDT_SHARED_VA_START;
     }
   } else {
     for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
@@ -24,6 +26,7 @@ void* cdt_host_thread(void *arg) {
         fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
         return NULL;
       } 
+      host->shared_pagetable[i].shared_va = i * getpagesize() + CDT_SHARED_VA_START;
     }
   }
 

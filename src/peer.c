@@ -57,7 +57,7 @@ int cdt_allocate_shared_page(int peer_id) {
       return -1;
     }
   }
-  printf("Found empty PTE with index %d\n", i);
+  printf("Found empty PTE with index %d and VA %p\n", i, (void *)fresh_pte->shared_va);
 
   // If we've gotten to this point, assume we're holding fresh_pte's lock
   fresh_pte->in_use = 1;
