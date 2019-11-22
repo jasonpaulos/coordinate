@@ -34,6 +34,44 @@ int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer
   return 0;
 }
 
+int cdt_allocate_shared_page(int peer_id) {
+  // Find the next not in-use PTE
+  cdt_manager_pte_t * fresh_pte;
+  int i;
+  for (i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
+    cdt_manager_pte_t * current_pte = &host.manager_pagetable[i];
+    if (current_pte->in_use == 0) {
+      pthread_mutex_lock(&current_pte->lock);
+      if (current_pte->in_use == 0) {
+        fresh_pte = &host.manager_pagetable[i];
+        break;
+      }
+      // We raced on this PTE and lost, so unlock it and keep looking
+      pthread_mutex_unlock(&current_pte->lock);
+      continue;
+    }
+    if (i == CDT_MAX_SHARED_PAGES - 1 && current_pte->in_use != 0) {
+      // Note: we COULD go back and keep looping over manager PTEs in hopes that another thread sets a PTE.in_use = 0
+      // if we support freeing (which we don't yet)
+      fprintf(stderr, "Failed to find an unused shared page for allocation request from peer from %d\n", peer_id);
+      return -1;
+    }
+  }
+  printf("Found empty PTE with index %d\n", i);
+
+  // If we've gotten to this point, assume we're holding fresh_pte's lock
+  fresh_pte->in_use = 1;
+  fresh_pte->writer = peer_id;
+  return 0;
+
+  // Send the new shared VA back to the requester
+  // if (cdt_connection_connect(&peer->connection, peer_address, peer_port) == -1) {
+  //   debug_print("Error connecting to peer at %s:%s\n", peer_address, peer_port);
+  //   return -1;
+  // }
+  pthread_mutex_unlock(&fresh_pte->lock);
+}
+
 void* cdt_peer_thread(void *arg) {
   cdt_peer_t *peer = (cdt_peer_t*)arg;
 
@@ -59,15 +97,19 @@ void* cdt_peer_thread(void *arg) {
 
       printf("Greeted new peer %d at %s:%s\n", peer_id, address, port);
     }
-    
+
     if (packet.type == CDT_PACKET_ALLOC_REQ && host.manager == 1) { // only the manager can allocate a page
       int peer_id;
       if (cdt_packet_alloc_req_parse(&packet, &peer_id) != 0) {
         fprintf(stderr, "Failed to parse allocation request packet from %s:%d\n", peer->connection.address, peer->connection.port);
         break;
       }
-
       printf("Received allocation request from peer %d\n", peer_id);
+
+      if (cdt_allocate_shared_page(peer_id) != 0) {
+        fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
+        break;
+      }
     }
 
     // TODO: handle other packets
