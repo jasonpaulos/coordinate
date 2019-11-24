@@ -2,6 +2,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include "packet.h"
+#include "util.h"
 
 int cdt_packet_self_identify_create(cdt_packet_t *packet, const char *address, const char *port) {
   int address_len = strlen(address) + 1; // + 1 to include null terminating character
@@ -102,6 +103,22 @@ int cdt_packet_alloc_req_parse(cdt_packet_t *packet, int *peer_id) {
   assert(packet->type == CDT_PACKET_ALLOC_REQ);
 
   *peer_id = ntohl(*(int*)packet->data);
+
+  return 0;
+}
+
+int cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page) {
+  packet->type = CDT_PACKET_ALLOC_RESP;
+  packet->size = sizeof(uint64_t);
+  *(uint64_t*)packet->data = htonll(page);
+
+  return 0;
+}
+
+int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t *page) {
+  assert(packet->type == CDT_PACKET_ALLOC_RESP);
+
+  *page = ntohll(*(uint64_t*)packet->data);
 
   return 0;
 }

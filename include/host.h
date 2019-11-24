@@ -8,7 +8,7 @@ typedef struct cdt_server_t cdt_server_t;
 #define CDT_MAX_MACHINES 32
 #define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
 #define CDT_SHARED_VA_START (1L << 32)
-#define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES)
+#define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES * getpagesize())
 #define INVALID_PAGE 0
 #define READ_ONLY_PAGE 1
 #define READ_WRITE_PAGE 2
@@ -18,6 +18,7 @@ typedef struct cdt_server_t cdt_server_t;
    The PTE must be locked before being accessed in any way. */
 typedef struct cdt_host_pte_t {
   int in_use;
+  /* shared_va should never be changed after init */
   uint64_t shared_va;
   /* access is one of READ_ONLY, READ_WRITE, and INVALID */
   int access;
@@ -30,6 +31,7 @@ typedef struct cdt_host_pte_t {
    The PTE must be locked before being accessed in any way. */
 typedef struct cdt_manager_pte_t {
   int in_use;
+  /* shared_va should never be changed after init */
   uint64_t shared_va; 
   /* The set of machines that have read access. 
      Each entry is 0 or 1 indicating no access or read access */

@@ -2,6 +2,7 @@
 #define COORDINATE_PACKET_H
 
 #define CDT_PACKET_DATA_SIZE 100
+#include <stdint.h>
 
 enum cdt_packet_type {
   CDT_PACKET_SELF_IDENTIFY,
@@ -56,8 +57,8 @@ int cdt_packet_existing_peer_parse(cdt_packet_t *packet, int *peer_id);
 int cdt_packet_alloc_req_create(cdt_packet_t *packet, int peer_id);
 int cdt_packet_alloc_req_parse(cdt_packet_t *packet, int *peer_id);
 
-int cdt_packet_alloc_resp_create(cdt_packet_t *packet, void* page);
-int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, void * page);
+int cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page);
+int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t * page);
 
 int cdt_packet_read_req_create(cdt_packet_t *packet, unsigned long page_addr);
 int cdt_packet_read_req_parse(cdt_packet_t *packet, unsigned long *page_addr);

@@ -1,4 +1,8 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <math.h>
+#include <assert.h>
+#include <string.h>
 #include "util.h"
 #include "packet.h"
 #include "host.h"
@@ -34,7 +38,7 @@ int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer
   return 0;
 }
 
-int cdt_allocate_shared_page(int peer_id) {
+int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
   // Find the next not in-use PTE
   cdt_manager_pte_t * fresh_pte;
   int i;
@@ -62,14 +66,19 @@ int cdt_allocate_shared_page(int peer_id) {
   // If we've gotten to this point, assume we're holding fresh_pte's lock
   fresh_pte->in_use = 1;
   fresh_pte->writer = peer_id;
-  return 0;
 
   // Send the new shared VA back to the requester
-  // if (cdt_connection_connect(&peer->connection, peer_address, peer_port) == -1) {
-  //   debug_print("Error connecting to peer at %s:%s\n", peer_address, peer_port);
-  //   return -1;
-  // }
+  cdt_packet_t packet;
+  if (cdt_packet_alloc_resp_create(&packet, fresh_pte->shared_va) != 0 || cdt_connection_send(&peer->connection, &packet) != 0) {
+    debug_print("Error providing allocated page to peer %d at %s:%d\n", peer_id, peer->connection.address, peer->connection.port);
+    cdt_connection_close(&peer->connection);
+    return -1;
+  }
+  printf("Sent packet for allocated pte\n");
+
+  // TODO: should we release the lock earlier than this?
   pthread_mutex_unlock(&fresh_pte->lock);
+  return 0;
 }
 
 void* cdt_peer_thread(void *arg) {
@@ -106,10 +115,19 @@ void* cdt_peer_thread(void *arg) {
       }
       printf("Received allocation request from peer %d\n", peer_id);
 
-      if (cdt_allocate_shared_page(peer_id) != 0) {
+      if (cdt_allocate_shared_page(peer_id, peer) != 0) {
         fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
         break;
       }
+    }
+
+    if (packet.type == CDT_PACKET_ALLOC_RESP) { 
+      uint64_t page;
+      if (cdt_packet_alloc_resp_parse(&packet, &page) != 0) {
+        fprintf(stderr, "Failed to parse allocation response packet from %s:%d\n", peer->connection.address, peer->connection.port);
+        break;
+      }
+      printf("Received allocation request with page %p\n", (void *)page);
     }
 
     // TODO: handle other packets
