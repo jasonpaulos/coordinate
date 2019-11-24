@@ -11,6 +11,9 @@
 extern cdt_host_t host;
 
 int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer_address, const char *peer_port) {
+  if (!host)
+    return -1;
+
   cdt_peer_t *peer = &host->peers[peer_id];
 
   if (cdt_connection_connect(&peer->connection, peer_address, peer_port) == -1) {
@@ -119,7 +122,7 @@ void* cdt_peer_thread(void *arg) {
       char *address, *port;
       cdt_packet_new_peer_parse(&packet, &peer_id, &address, &port);
       
-      if (cdt_peer_greet_existing_peer(peer->host, peer_id, address, port) != 0) {
+      if (cdt_peer_greet_existing_peer(cdt_get_host(), peer_id, address, port) != 0) {
         fprintf(stderr, "Failed to greet new peer at %s:%s\n", address, port);
         break;
       }

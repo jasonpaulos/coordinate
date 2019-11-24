@@ -1,11 +1,29 @@
 #ifndef COORDINATE_THREAD_H
 #define COORDINATE_THREAD_H
 
+#include <stdint.h>
 #include <pthread.h>
 
 typedef struct cdt_thread_t {
-  pthread_t id;
+  pthread_t local_id;
+
+  uint32_t remote_peer_id;
+  uint32_t remote_thread_id;
+  uint64_t remote_routine;
+  uint64_t remote_routine_arg;
 } cdt_thread_t;
+
+/**
+ * Obtain the thread identifier of the calling thread.
+ */
+cdt_thread_t cdt_thread_self();
+
+/**
+ * Check if two threads are equal.
+ * 
+ * Returns 0 if t1 is the same thread is as t2, otherwise will return a nonzero value.
+ */
+int cdt_thread_equal(cdt_thread_t *t1, cdt_thread_t *t2);
 
 /**
  * Create a new thread that invokes start_routine with argument arg.

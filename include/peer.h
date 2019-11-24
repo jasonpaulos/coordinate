@@ -16,7 +16,6 @@ typedef struct cdt_peer_t {
   pthread_t read_thread;
   /* The network connection associated with this peer. */
   cdt_connection_t connection;
-  cdt_host_t *host;
 } cdt_peer_t;
 
 /**

@@ -11,6 +11,7 @@
 extern "C" {
 #endif
 
+#include "init.h"
 #include "thread.h"
 
 /**

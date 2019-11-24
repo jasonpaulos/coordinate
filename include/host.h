@@ -7,6 +7,7 @@
 typedef struct cdt_server_t cdt_server_t;
 
 #define CDT_MAX_MACHINES 32
+#define CDT_MAX_THREADS 32
 #define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
 #define CDT_SHARED_VA_START (1L << 32)
 #define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES * PAGESIZE)
@@ -62,18 +63,39 @@ typedef struct cdt_host_t {
   /* This array is only valid if the host is the manager. */
   cdt_manager_pte_t manager_pagetable[CDT_MAX_SHARED_PAGES];
 
+  /* The thread that this machine is currently running. */
+  cdt_thread_t *self_thread;
+  uint32_t thread_counter;
   int num_threads;
-  cdt_thread_t *threads[CDT_MAX_MACHINES];
+  cdt_thread_t *threads[CDT_MAX_THREADS];
 } cdt_host_t;
 
 /**
- * Start a host on its own thread. host must be already initialized to a valid cdt_host_t object.
+ * Initialize a host.
+ * 
+ * manager shoud be 1 if this machine is the manager, otherwise 0.
  */
-int cdt_host_start(cdt_host_t *host);
+cdt_host_t* cdt_host_init(int manager, cdt_server_t *server, uint32_t peers_to_be_connected);
 
 /**
- * Wait for the host thred to finish.
+ * Start the host thrad.
+ * 
+ * Returns 0 on success.
  */
-void cdt_host_join(cdt_host_t *host);
+int cdt_host_start();
+
+/**
+ * Get the host for this machine.
+ * 
+ * If the host has not been initialized yet, returns NULL.
+ */
+cdt_host_t *cdt_get_host();
+
+/**
+ * Wait for the host thread to finish.
+ * 
+ * Returns 0 on success, -1 on error.
+ */
+int cdt_host_join();
 
 #endif
