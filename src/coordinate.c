@@ -1,4 +1,5 @@
 #include <mqueue.h>
+#include <stdlib.h>
 #include "coordinate.h"
 #include "message.h"
 
@@ -34,7 +35,15 @@ void* cdt_malloc(size_t size) {
   printf("Received message from manager peer-thread with type %d and shared VA %p\n", 
     allocation_response.type, (void *)allocation_response.shared_va);
 
-  return NULL;
+  int pte_idx = PGROUNDDOWN(allocation_response.shared_va);
+  pthread_mutex_lock(&host.shared_pagetable[pte_idx].lock);
+  host.shared_pagetable[pte_idx].in_use = 1;
+  host.shared_pagetable[pte_idx].access = READ_WRITE_PAGE;
+  host.shared_pagetable[pte_idx].page = malloc(PAGESIZE);
+  printf("Filled in PTE index %d with new local pointer %p\n", pte_idx, host.shared_pagetable[pte_idx].page);
+  pthread_mutex_unlock(&host.shared_pagetable[pte_idx].lock);
+
+  return (void *)allocation_response.shared_va;
 }
 
 void cdt_free(void *ptr) {
