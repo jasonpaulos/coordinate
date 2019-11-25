@@ -86,12 +86,6 @@ int cdt_main(int argc, char **argv) {
     return -1;
   }
 
-  printf("Coordinate args: ");
-  for (int i = 0; i < argc; i++) {
-    printf("%s ", argv[i]);
-  }
-  printf("\n");
-
   int host_index = 0;
   for (int i = 1; i < argc - 1; i++) {
     if (strcmp(argv[i], "--host") == 0) {
