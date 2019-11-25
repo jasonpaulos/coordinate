@@ -1,8 +1,10 @@
+#include <stdint.h>
+#include "util.h"
+
 #ifndef COORDINATE_PACKET_H
 #define COORDINATE_PACKET_H
-
-#define CDT_PACKET_DATA_SIZE 100
-#include <stdint.h>
+// Page size for when we need to send pages +1 for null terminating character?
+#define CDT_PACKET_DATA_SIZE (PAGESIZE + 1) 
 
 enum cdt_packet_type {
   CDT_PACKET_SELF_IDENTIFY,

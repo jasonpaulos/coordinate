@@ -8,7 +8,7 @@ typedef struct cdt_server_t cdt_server_t;
 #define CDT_MAX_MACHINES 32
 #define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
 #define CDT_SHARED_VA_START (1L << 32)
-#define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES * getpagesize())
+#define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES * PAGESIZE)
 #define INVALID_PAGE 0
 #define READ_ONLY_PAGE 1
 #define READ_WRITE_PAGE 2

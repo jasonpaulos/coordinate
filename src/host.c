@@ -18,7 +18,7 @@ void* cdt_host_thread(void *arg) {
         fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
         return NULL;
       } 
-      host->manager_pagetable[i].shared_va = i * getpagesize() + CDT_SHARED_VA_START;
+      host->manager_pagetable[i].shared_va = i * PAGESIZE + CDT_SHARED_VA_START;
     }
   } else {
     for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
@@ -26,7 +26,7 @@ void* cdt_host_thread(void *arg) {
         fprintf(stderr, "Failed to init lock for manager PTE index %d\n", i);
         return NULL;
       } 
-      host->shared_pagetable[i].shared_va = i * getpagesize() + CDT_SHARED_VA_START;
+      host->shared_pagetable[i].shared_va = i * PAGESIZE + CDT_SHARED_VA_START;
     }
   }
 

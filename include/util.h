@@ -1,5 +1,6 @@
 #ifndef COORDINATE_UTIL_H
 #define COORDINATE_UTIL_H
+#define PAGESIZE 4096
 
 #include <stdio.h>
 
