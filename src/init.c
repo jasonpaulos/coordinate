@@ -223,6 +223,11 @@ int cdt_main(int argc, char **argv) {
 }
 
 void cdt_init() {
+#ifdef COORDINATE_LOCAL
+  printf("coordinate started under local mode\n");
+#else
+  printf("coordinate started under dsm mode\n");
+
   char **argv;
   int argc = cdt_init_get_args(&argv);
   if (argc < 0) {
@@ -238,4 +243,5 @@ void cdt_init() {
   }
 
   // exit if status == 0 ?
+#endif
 }

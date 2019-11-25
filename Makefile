@@ -1,27 +1,53 @@
 IDIR = include
-SDIR = src
-ODIR = bin
 EXDIR = examples
 
+SDIR = src
+SDIR_CLI = $(SDIR)/cli
+
+ODIR = bin
+ODIR_CLI = $(ODIR)/cli
+ODIR_LOC = $(ODIR)/loc
+ODIR_DSM = $(ODIR)/dsm
+
 CC = gcc
-CFLAGS = -fPIC -Wall -Werror -O2 -g -I$(IDIR) -lrt -lpthread -D DEBUG=1
-LDFLAGS = -shared
+CFLAGS_CLI = -Wall -Werror -O2 -g
+CFLAGS_DSM = $(CFLAGS_CLI) -fPIC -I$(IDIR) -lrt -lpthread -D DEBUG=1
+CFLAGS_LOC = $(CFLAGS_DSM) -D COORDINATE_LOCAL
+LDFLAGS = -shared -Wl,-soname,libcoordinate.so
 
 DEPS := $(wildcard $(IDIR)/*.h)
-OBJS := $(patsubst $(SDIR)/%.c,$(ODIR)/%.o,$(filter-out $(SDIR)/main.c, $(wildcard $(SDIR)/*.c)))
+SRC := $(wildcard $(SDIR)/*.c)
+OBJS_CLI := $(patsubst $(SDIR_CLI)/%.c,$(ODIR_CLI)/%.o,$(wildcard $(SDIR_CLI)/*.c))
+OBJS_LOC := $(patsubst $(SDIR)/%.c,$(ODIR_LOC)/%.o,$(SRC))
+OBJS_DSM := $(patsubst $(SDIR)/%.c,$(ODIR_DSM)/%.o,$(SRC))
 EXAMPLES := $(wildcard $(EXDIR)/*)
 
-$(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
-	@mkdir -p $(@D)
-	$(CC) -c -o $@ $< $(CFLAGS)
+LIB_LOC = $(ODIR_LOC)/libcoordinate.so
+LIB_DSM = $(ODIR_DSM)/libcoordinate.so
+CLI = $(ODIR_CLI)/coordinate
 
-$(ODIR)/libcoordinate.so: $(OBJS)
+$(ODIR_LOC)/%.o: $(SDIR)/%.c $(DEPS)
+	@mkdir -p $(@D)
+	$(CC) -c -o $@ $< $(CFLAGS_LOC)
+
+$(ODIR_DSM)/%.o: $(SDIR)/%.c $(DEPS)
+	@mkdir -p $(@D)
+	$(CC) -c -o $@ $< $(CFLAGS_DSM)
+
+$(ODIR_CLI)/%.o: $(SDIR_CLI)/%.c
+	@mkdir -p $(@D)
+	$(CC) -c -o $@ $< $(CFLAGS_CLI)
+
+$(LIB_LOC): $(OBJS_LOC)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(ODIR)/coordinate: $(ODIR)/main.o
-	$(CC) -o $@ $^ $(CFLAGS)
+$(LIB_DSM): $(OBJS_DSM)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(EXDIR)/%: $(ODIR)/libcoordinate.so FORCE
+$(CLI): $(OBJS_CLI)
+	$(CC) -o $@ $^ $(CFLAGS_CLI)
+
+$(EXDIR)/%: $(LIB_LOC) $(LIB_DSM) FORCE
 	$(MAKE) -C $@
 
 $(EXDIR): $(EXAMPLES) FORCE
@@ -30,13 +56,12 @@ $(EXDIR): $(EXAMPLES) FORCE
 
 .DEFAULT_GOAL := default
 
-default: $(ODIR)/coordinate $(EXDIR)
+default: $(EXDIR) $(CLI)
 
 FORCE:
 
-gdb: export LD_LIBRARY_PATH := $(abspath $(ODIR)):$(LD_LIBRARY_PATH)
-gdb: $(ODIR)/coordinate
-	gdbserver :26100 $(ODIR)/coordinate $(ARGS)
+gdb: $(CLI)
+	gdbserver :26100 $(CLI) $(ARGS)
 
 clean:
 	rm -rf $(ODIR)

@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
       return -1;
     }
 
+    // TODO: set LD_LIBRARY_PATH=/path/to/folder/with/the/dsm/version/of/libcoordinate.so:$LD_LIBRARY_PATH
     execvp(argv[coordinate_argc], argv + coordinate_argc);
 
     fprintf(stderr, "%s: Failed to exec user program %s: %s\n", argv[0], argv[coordinate_argc], strerror(errno));
