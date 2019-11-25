@@ -1,14 +1,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <mqueue.h>
+#include <errno.h>
 #include "server.h"
 #include "connection.h"
 #include "packet.h"
 #include "host.h"
 #include "coordinate.h"
+#include "message.h"
 
 cdt_host_t host;
 cdt_connection_t manager_connection;
+mqd_t qd_manager_peer_thread;   // queue descriptor for message queue TO the manager peer-thread (R/O)
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -108,6 +112,18 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Failed to send peer id confirmation packet\n");
       return -1;
     }
+    struct mq_attr attr;
+
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = MAX_MESSAGES;
+    attr.mq_msgsize = MSG_SIZE;
+    attr.mq_curmsgs = 0;
+
+    if ((qd_manager_peer_thread = mq_open (MAIN_MANAGER_QUEUE_NAME, O_RDONLY | O_CREAT, QUEUE_PERMISSIONS, &attr)) == -1) {
+      debug_print("Main thread failed to create message queue to manager peer-thread, \n");
+      perror("Error num");
+      return -1;
+    }
 
     host.peers[0].connection = manager_connection;
     host.peers[0].host = &host;
@@ -121,6 +137,9 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Cannot start host thread\n");
     return -1;
   }
+  // For testing
+  // printf("Mallocing\n");
+  // cdt_malloc(1);
 
   cdt_host_join(&host);
 

@@ -3,9 +3,11 @@
 #include <math.h>
 #include <assert.h>
 #include <string.h>
+#include <mqueue.h>
 #include "util.h"
 #include "packet.h"
 #include "host.h"
+#include "message.h"
 
 extern cdt_host_t host;
 
@@ -83,6 +85,15 @@ int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
 
 void* cdt_peer_thread(void *arg) {
   cdt_peer_t *peer = (cdt_peer_t*)arg;
+  // queue descriptor for message queue TO the main thread (W/O) - only valid if this is the manage peer-thread
+  mqd_t qd_main_thread;   
+  // Check if this is the manager peer-thread - if so, open up the message queue to the main thread
+  if (peer->id == 0) {
+    if ((qd_main_thread = mq_open (MAIN_MANAGER_QUEUE_NAME, O_WRONLY)) == -1) {
+        debug_print("Main thread failed to create message queue to manager peer-thread\n");
+        return NULL; // TODO: is there a better failure return val?
+    }
+  }
 
   while(1) {
     cdt_packet_t packet;
@@ -122,12 +133,23 @@ void* cdt_peer_thread(void *arg) {
     }
 
     if (packet.type == CDT_PACKET_ALLOC_RESP) { 
+      assert(peer->id == 0);
       uint64_t page;
       if (cdt_packet_alloc_resp_parse(&packet, &page) != 0) {
         fprintf(stderr, "Failed to parse allocation response packet from %s:%d\n", peer->connection.address, peer->connection.port);
         break;
       }
       printf("Received allocation request with page %p\n", (void *)page);
+
+      cdt_message_t allocation_message;
+      allocation_message.type = ALLOCATE_RESP;
+      allocation_message.shared_va = page;
+
+      if (mq_send (qd_main_thread, (char *)&allocation_message, sizeof(allocation_message), 0) == -1) {
+        debug_print ("Failed to send allocation response message to main thread\n");
+        return NULL;
+      }
+      printf("Sent allocation response message to main thread\n");
     }
 
     // TODO: handle other packets
