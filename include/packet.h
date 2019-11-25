@@ -38,9 +38,9 @@ enum cdt_packet_type {
  */
 typedef struct cdt_packet_t {
   /* The size of the packet's data. */
-  int size;
+  uint32_t size;
   /* The type of the packet. */
-  int type;
+  uint32_t type;
   /* The payload of the packet. */
   char data[CDT_PACKET_DATA_SIZE];
 } cdt_packet_t;
