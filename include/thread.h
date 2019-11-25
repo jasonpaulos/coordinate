@@ -5,12 +5,12 @@
 #include <pthread.h>
 
 typedef struct cdt_thread_t {
+  int valid;
+
   pthread_t local_id;
 
   uint32_t remote_peer_id;
   uint32_t remote_thread_id;
-  uint64_t remote_routine;
-  uint64_t remote_routine_arg;
 } cdt_thread_t;
 
 /**

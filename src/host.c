@@ -118,9 +118,9 @@ cdt_host_t* cdt_host_init(int manager, cdt_server_t *server, uint32_t peers_to_b
   cdt_host.server = server;
   cdt_host.peers_to_be_connected = peers_to_be_connected;
   cdt_host.num_peers = manager ? 1 : 2;
-
+  
   // Initialize all the locks and virtual addresses for appropriate pagetable
-  if (cdt_host.manager) {
+  if (manager) {
     for (int i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
       if (pthread_mutex_init(&cdt_host.manager_pagetable[i].lock, NULL) != 0) { 
         debug_print("Failed to init lock for manager PTE index %d\n", i);
@@ -136,6 +136,15 @@ cdt_host_t* cdt_host_init(int manager, cdt_server_t *server, uint32_t peers_to_b
       } 
       cdt_host.shared_pagetable[i].shared_va = i * PAGESIZE + CDT_SHARED_VA_START;
     }
+  }
+
+  pthread_mutex_init(&cdt_host.thread_lock, NULL);
+  if (manager) {
+    cdt_host.num_threads = 1;
+    cdt_host.self_thread = &cdt_host.threads[0];
+    cdt_host.self_thread->valid = 1;
+    cdt_host.self_thread->remote_peer_id = cdt_host.self_id;
+    cdt_host.self_thread->remote_thread_id = cdt_host.thread_counter++;
   }
 
   return &cdt_host;

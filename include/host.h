@@ -63,11 +63,12 @@ typedef struct cdt_host_t {
   /* This array is only valid if the host is the manager. */
   cdt_manager_pte_t manager_pagetable[CDT_MAX_SHARED_PAGES];
 
+  pthread_mutex_t thread_lock;
   /* The thread that this machine is currently running. */
   cdt_thread_t *self_thread;
   uint32_t thread_counter;
   int num_threads;
-  cdt_thread_t *threads[CDT_MAX_THREADS];
+  cdt_thread_t threads[CDT_MAX_THREADS];
 } cdt_host_t;
 
 /**
