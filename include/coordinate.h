@@ -2,14 +2,13 @@
 #define COORDINATE_H
 
 #include <stddef.h>
-#include "packet.h"
-#include "host.h"
-#include "message.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "init.h"
+#include "thread.h"
 
 /**
  * Allocates size bytes of shared memory and returns a pointer to the allocated memory.

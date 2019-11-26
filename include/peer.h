@@ -12,11 +12,10 @@ typedef struct cdt_manager_pte_t cdt_manager_pte_t;
  */
 typedef struct cdt_peer_t {
   /* The id of the peer. This should be the same as the index of the peer in the host.peers array. */
-  int id;
+  uint32_t id;
   pthread_t read_thread;
   /* The network connection associated with this peer. */
   cdt_connection_t connection;
-  cdt_host_t *host;
 } cdt_peer_t;
 
 /**

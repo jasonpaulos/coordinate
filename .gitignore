@@ -55,5 +55,4 @@ dkms.conf
 .vagrant/
 *.log
 
-bin/
-lib/
+**/bin/
