@@ -9,11 +9,13 @@ ODIR_CLI = $(ODIR)/cli
 ODIR_LOC = $(ODIR)/loc
 ODIR_DSM = $(ODIR)/dsm
 
+INSTALL_DIR = /usr/local
+
 CC = gcc
 CFLAGS_CLI = -Wall -Werror -O2 -g
 CFLAGS_DSM = $(CFLAGS_CLI) -fPIC -I$(IDIR) -lrt -lpthread -D DEBUG=1
 CFLAGS_LOC = $(CFLAGS_DSM) -D COORDINATE_LOCAL
-LDFLAGS = -shared -Wl,-soname,libcoordinate.so
+LDFLAGS = -shared -Wl,-soname,$(@F)
 
 DEPS := $(wildcard $(IDIR)/*.h)
 SRC := $(wildcard $(SDIR)/*.c)
@@ -23,7 +25,7 @@ OBJS_DSM := $(patsubst $(SDIR)/%.c,$(ODIR_DSM)/%.o,$(SRC))
 EXAMPLES := $(wildcard $(EXDIR)/*)
 
 LIB_LOC = $(ODIR_LOC)/libcoordinate.so
-LIB_DSM = $(ODIR_DSM)/libcoordinate.so
+LIB_DSM = $(ODIR_DSM)/libcoordinate.dsm.so
 CLI = $(ODIR_CLI)/coordinate
 
 $(ODIR_LOC)/%.o: $(SDIR)/%.c $(DEPS)
@@ -52,7 +54,7 @@ $(EXDIR)/%: $(LIB_LOC) $(LIB_DSM) FORCE
 
 $(EXDIR): $(EXAMPLES) FORCE
 
-.PHONY: clean gdb FORCE default
+.PHONY: install clean gdb FORCE default
 
 .DEFAULT_GOAL := default
 
@@ -66,3 +68,9 @@ gdb: $(CLI)
 clean:
 	rm -rf $(ODIR)
 	$(foreach dir,$(EXAMPLES),$(MAKE) -C $(dir) clean)
+
+install: $(LIB_LOC) $(LIB_DSM) $(CLI)
+	cp $(LIB_LOC) $(INSTALL_DIR)/lib/libcoordinate.so
+	cp $(LIB_DSM) $(INSTALL_DIR)/lib/libcoordinate.dsm.so
+	ldconfig
+	cp $(CLI) $(INSTALL_DIR)/bin/coordinate
