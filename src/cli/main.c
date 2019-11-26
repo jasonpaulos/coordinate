@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
       return -1;
     }
 
-    if (putenv("LD_PRELOAD=/usr/local/lib/libcoordinate.dsm.so") != 0) {
+    if (putenv("LD_PRELOAD=libcoordinate.dsm.so") != 0) {
       fprintf(stderr, "%s: Failed to set LD_PRELOAD\n", argv[0]);
       return -1;
     }
