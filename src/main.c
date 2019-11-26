@@ -1,10 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <mqueue.h>
+#include <errno.h>
 #include "server.h"
 #include "connection.h"
 #include "packet.h"
 #include "host.h"
+#include "message.h"
+
+cdt_host_t host;
+cdt_connection_t manager_connection;
+mqd_t qd_manager_peer_thread;   // queue descriptor for message queue TO the manager peer-thread (R/O)
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -69,15 +76,12 @@ int main(int argc, char *argv[]) {
 
   printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
 
-  cdt_host_t host;
   memset(&host, 0, sizeof(host));
   host.manager = connection_index == 0;
   host.server = &server;
   host.peers_to_be_connected = ~1;
 
   if (connection_index) {
-    cdt_connection_t manager_connection;
-
     if (cdt_connection_connect(&manager_connection, connection_address, connection_port) == -1) {
       fprintf(stderr, "Error connecting to server\n");
       return -1;
@@ -105,6 +109,18 @@ int main(int argc, char *argv[]) {
     cdt_packet_peer_id_confim_create(&packet);
     if (cdt_connection_send(&manager_connection, &packet) != 0) {
       fprintf(stderr, "Failed to send peer id confirmation packet\n");
+      return -1;
+    }
+    struct mq_attr attr;
+
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = MAX_MESSAGES;
+    attr.mq_msgsize = MSG_SIZE;
+    attr.mq_curmsgs = 0;
+
+    if ((qd_manager_peer_thread = mq_open (MAIN_MANAGER_QUEUE_NAME, O_RDONLY | O_CREAT, QUEUE_PERMISSIONS, &attr)) == -1) {
+      debug_print("Main thread failed to create message queue to manager peer-thread, \n");
+      perror("Error num");
       return -1;
     }
 

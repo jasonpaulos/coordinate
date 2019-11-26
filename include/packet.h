@@ -1,7 +1,10 @@
+#include <stdint.h>
+#include "util.h"
+
 #ifndef COORDINATE_PACKET_H
 #define COORDINATE_PACKET_H
-
-#define CDT_PACKET_DATA_SIZE 100
+// Page size for when we need to send pages +1 for null terminating character?
+#define CDT_PACKET_DATA_SIZE (PAGESIZE + 1) 
 
 enum cdt_packet_type {
   CDT_PACKET_SELF_IDENTIFY,
@@ -10,6 +13,9 @@ enum cdt_packet_type {
 
   CDT_PACKET_NEW_PEER,
   CDT_PACKET_EXISTING_PEER,
+
+  CDT_PACKET_ALLOC_REQ,
+  CDT_PACKET_ALLOC_RESP,
 
   CDT_PACKET_READ_REQ,
   CDT_PACKET_READ_RESP,
@@ -49,6 +55,12 @@ int cdt_packet_new_peer_parse(cdt_packet_t *packet, int *peer_id, char **address
 
 int cdt_packet_existing_peer_create(cdt_packet_t *packet, int peer_id);
 int cdt_packet_existing_peer_parse(cdt_packet_t *packet, int *peer_id);
+
+int cdt_packet_alloc_req_create(cdt_packet_t *packet, int peer_id);
+int cdt_packet_alloc_req_parse(cdt_packet_t *packet, int *peer_id);
+
+int cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page);
+int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t * page);
 
 int cdt_packet_read_req_create(cdt_packet_t *packet, unsigned long page_addr);
 int cdt_packet_read_req_parse(cdt_packet_t *packet, unsigned long *page_addr);
