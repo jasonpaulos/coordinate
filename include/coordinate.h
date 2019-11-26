@@ -2,10 +2,6 @@
 #define COORDINATE_H
 
 #include <stddef.h>
-#include "packet.h"
-#include "host.h"
-#include "message.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {

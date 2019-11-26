@@ -1,10 +1,7 @@
-#include <stdint.h>
-#include "util.h"
-
 #ifndef COORDINATE_PACKET_H
 #define COORDINATE_PACKET_H
 
-#include <stdint.h>
+#include "util.h"
 
 typedef struct cdt_thread_t cdt_thread_t;
 
@@ -65,11 +62,11 @@ void cdt_packet_new_peer_parse(cdt_packet_t *packet, uint32_t *peer_id, char **a
 void cdt_packet_existing_peer_create(cdt_packet_t *packet, uint32_t peer_id);
 void cdt_packet_existing_peer_parse(cdt_packet_t *packet, uint32_t *peer_id);
 
-int cdt_packet_alloc_req_create(cdt_packet_t *packet, int peer_id);
-int cdt_packet_alloc_req_parse(cdt_packet_t *packet, int *peer_id);
+void cdt_packet_alloc_req_create(cdt_packet_t *packet, uint32_t peer_id);
+void cdt_packet_alloc_req_parse(cdt_packet_t *packet, uint32_t *peer_id);
 
-int cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page);
-int cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t * page);
+void cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page);
+void cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t *page);
 
 void cdt_packet_thread_create_req_create(cdt_packet_t *packet, uint64_t procedure, uint64_t arg);
 void cdt_packet_thread_create_req_parse(cdt_packet_t *packet, uint64_t *procedure, uint64_t *arg);
