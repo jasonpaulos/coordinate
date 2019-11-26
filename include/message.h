@@ -1,3 +1,6 @@
+#ifndef COORDINATE_MESSAGE_H
+#define COORDINATE_MESSAGE_H
+
 #include "util.h"
 #include <stdint.h>
 
@@ -17,3 +20,5 @@ typedef struct cdt_message_t {
   uint64_t shared_va;
   char page[PAGESIZE + 1];
 } cdt_message_t;
+
+#endif

@@ -40,16 +40,19 @@ int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer
   return 0;
 }
 
-int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
-  // Find the next not in-use PTE
-  cdt_manager_pte_t * fresh_pte;
+/* Finds an unused page table entry and puts the pointer to the PTE in *fresh_pte. 
+   IMPORTANT: it returns holding the lock for the unused PTE if it succeeds in finding a fresh PTE.
+   Returns 0 if successful in finding an unused PTE, -1 otherwise. */
+int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) {
+  assert(host.manager == 1);
   int i;
   for (i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
     cdt_manager_pte_t * current_pte = &host.manager_pagetable[i];
     if (current_pte->in_use == 0) {
       pthread_mutex_lock(&current_pte->lock);
       if (current_pte->in_use == 0) {
-        fresh_pte = &host.manager_pagetable[i];
+        *fresh_pte = &host.manager_pagetable[i];
+        printf("fresh pte shared VA %p\n", (void *)host.manager_pagetable[i].shared_va);
         break;
       }
       // We raced on this PTE and lost, so unlock it and keep looking
@@ -63,7 +66,16 @@ int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
       return -1;
     }
   }
-  printf("Found empty PTE with index %d and VA %p\n", i, (void *)fresh_pte->shared_va);
+  printf("Found empty PTE with index %d and VA %p\n", i, (void *)(*fresh_pte)->shared_va);
+  return 0;
+}
+
+int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
+  // Find the next not in-use PTE
+  cdt_manager_pte_t * fresh_pte;
+  if (cdt_find_unused_pte(&fresh_pte, peer_id) < 0) {
+    return -1;
+  }
 
   // If we've gotten to this point, assume we're holding fresh_pte's lock
   fresh_pte->in_use = 1;
@@ -139,7 +151,7 @@ void* cdt_peer_thread(void *arg) {
         fprintf(stderr, "Failed to parse allocation response packet from %s:%d\n", peer->connection.address, peer->connection.port);
         break;
       }
-      printf("Received allocation request with page %p\n", (void *)page);
+      printf("Received allocation response with page %p\n", (void *)page);
 
       cdt_message_t allocation_message;
       allocation_message.type = ALLOCATE_RESP;

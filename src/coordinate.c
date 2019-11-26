@@ -1,16 +1,25 @@
 #include <mqueue.h>
 #include <stdlib.h>
 #include "coordinate.h"
-#include "message.h"
 
 extern cdt_host_t host;
 extern cdt_connection_t manager_connection;
 extern mqd_t qd_manager_peer_thread;
 
+// Returns NULL on failure
 void* cdt_malloc(size_t size) {
   if (host.manager) {
-    // Make the allocation
     printf("Manager trying to malloc\n");
+    cdt_manager_pte_t * fresh_pte;
+    if (cdt_find_unused_pte(&fresh_pte, 0) < 0) {
+      return NULL;
+    }
+    // If we've gotten to this point, assume we're holding fresh_pte's lock
+    fresh_pte->in_use = 1;
+    fresh_pte->writer = 0;
+    fresh_pte->page = malloc(PAGESIZE);
+    pthread_mutex_unlock(&fresh_pte->lock);
+    return (void *)fresh_pte->shared_va;
     return NULL;
 
   }
@@ -35,7 +44,8 @@ void* cdt_malloc(size_t size) {
   printf("Received message from manager peer-thread with type %d and shared VA %p\n", 
     allocation_response.type, (void *)allocation_response.shared_va);
 
-  int pte_idx = PGROUNDDOWN(allocation_response.shared_va);
+  int pte_idx = SHARED_VA_TO_IDX(allocation_response.shared_va);
+  printf("pte idx: %d\n", pte_idx);
   pthread_mutex_lock(&host.shared_pagetable[pte_idx].lock);
   host.shared_pagetable[pte_idx].in_use = 1;
   host.shared_pagetable[pte_idx].access = READ_WRITE_PAGE;

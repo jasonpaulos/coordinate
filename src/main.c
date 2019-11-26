@@ -7,7 +7,6 @@
 #include "connection.h"
 #include "packet.h"
 #include "host.h"
-#include "coordinate.h"
 #include "message.h"
 
 cdt_host_t host;
@@ -137,9 +136,6 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Cannot start host thread\n");
     return -1;
   }
-  // For testing
-  // printf("Mallocing\n");
-  // cdt_malloc(1);
 
   cdt_host_join(&host);
 
