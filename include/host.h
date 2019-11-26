@@ -40,7 +40,7 @@ typedef struct cdt_manager_pte_t {
   /* The machine ID with R/W access. If this is -1, there is no writer. 
      If this is >=0 then read_set must be all zeros */
   int writer;
-  /* Pointer to the page itself which is only valid when the pag eis in R/O mode */
+  /* Pointer to the page itself which is only valid when the page is in R/O mode */
   void * page;
   pthread_mutex_t lock;
 } cdt_manager_pte_t;
