@@ -43,11 +43,11 @@ void* cdt_malloc(size_t size) {
   cdt_message_t allocation_response;
 
   if (mq_receive (qd_manager_peer_thread, (char *)&allocation_response, sizeof(allocation_response), NULL) == -1) {
-    debug_print("Failed to receive a message from manager peer-thread\n");
+    debug_print("Failed to receive a message from manager receiver-thread\n");
     return NULL;
   }
 
-  printf("Received message from manager peer-thread with type %d and shared VA %p\n", 
+  printf("Received message from manager receiver-thread with type %d and shared VA %p\n", 
     allocation_response.type, (void *)allocation_response.shared_va);
 
   int pte_idx = SHARED_VA_TO_IDX(allocation_response.shared_va);

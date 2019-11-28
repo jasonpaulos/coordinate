@@ -190,7 +190,7 @@ int cdt_main(int argc, char **argv) {
     attr.mq_curmsgs = 0;
 
     if ((qd_manager_peer_thread = mq_open (MAIN_MANAGER_QUEUE_NAME, O_RDONLY | O_CREAT, QUEUE_PERMISSIONS, &attr)) == -1) {
-      debug_print("Main thread failed to create message queue to manager peer-thread, \n");
+      debug_print("Main thread failed to create message queue to manager receiver-thread, \n");
       perror("Error num");
       return -1;
     }
