@@ -167,6 +167,12 @@ void* cdt_peer_thread(void *arg) {
   return NULL;
 }
 
+/* Receiver threads should call this function to create a worker thread for every request they receive from 
+   their corresponding peer. */
+int cdt_worker_start(cdt_peer_t *peer, void * (*worker_task)(void *)) {
+  return pthread_create(&peer->worker_thread, NULL, worker_task, (void*)peer);
+}
+
 int cdt_peer_start(cdt_peer_t *peer) {
   return pthread_create(&peer->read_thread, NULL, cdt_peer_thread, (void*)peer);
 }
