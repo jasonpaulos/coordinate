@@ -8,6 +8,12 @@
 #include "host.h"
 #include "message.h"
 
+/* Receiver threads should call this function to create a worker thread for every request they receive from 
+   their corresponding peer. */
+int cdt_worker_start(cdt_peer_t *peer, void * (*worker_task)(void *)) {
+  return pthread_create(&peer->worker_thread, NULL, worker_task, (void*)peer);
+}
+
 int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer_address, const char *peer_port) {
   if (!host)
     return -1;
@@ -73,30 +79,32 @@ int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) {
   return 0;
 }
 
-int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
+void * cdt_allocate_shared_page(void *arg) {
+  cdt_peer_t *peer = (cdt_peer_t*)arg;
+
   // Find the next not in-use PTE
   cdt_manager_pte_t * fresh_pte;
-  if (cdt_find_unused_pte(&fresh_pte, peer_id) < 0) {
-    return -1;
+  if (cdt_find_unused_pte(&fresh_pte, peer->id) < 0) {
+    return NULL;
   }
 
   // If we've gotten to this point, assume we're holding fresh_pte's lock
   fresh_pte->in_use = 1;
-  fresh_pte->writer = peer_id;
+  fresh_pte->writer = peer->id;
 
   // Send the new shared VA back to the requester
   cdt_packet_t packet;
   cdt_packet_alloc_resp_create(&packet, fresh_pte->shared_va);
   if (cdt_connection_send(&peer->connection, &packet) != 0) {
-    debug_print("Error providing allocated page to peer %d at %s:%d\n", peer_id, peer->connection.address, peer->connection.port);
+    debug_print("Error providing allocated page to peer %d at %s:%d\n", peer->id, peer->connection.address, peer->connection.port);
     cdt_connection_close(&peer->connection);
-    return -1;
+    return NULL;
   }
   printf("Sent packet for allocated pte\n");
 
   // TODO: should we release the lock earlier than this?
   pthread_mutex_unlock(&fresh_pte->lock);
-  return 0;
+  return (void *)fresh_pte;
 }
 
 void* cdt_peer_thread(void *arg) {
@@ -138,7 +146,7 @@ void* cdt_peer_thread(void *arg) {
       cdt_packet_alloc_req_parse(&packet, &peer_id);
       printf("Received allocation request from peer %d\n", peer_id);
 
-      if (cdt_allocate_shared_page(peer_id, peer) != 0) {
+      if (cdt_worker_start(peer, cdt_allocate_shared_page) != 0) {
         fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
         break;
       }
@@ -165,12 +173,6 @@ void* cdt_peer_thread(void *arg) {
   }
   
   return NULL;
-}
-
-/* Receiver threads should call this function to create a worker thread for every request they receive from 
-   their corresponding peer. */
-int cdt_worker_start(cdt_peer_t *peer, void * (*worker_task)(void *)) {
-  return pthread_create(&peer->worker_thread, NULL, worker_task, (void*)peer);
 }
 
 int cdt_peer_start(cdt_peer_t *peer) {
