@@ -91,19 +91,13 @@ void cdt_packet_existing_peer_parse(cdt_packet_t *packet, uint32_t *peer_id) {
   *peer_id = ntohl(*peer_id);
 }
 
-void cdt_packet_alloc_req_create(cdt_packet_t *packet, uint32_t peer_id) {
+void cdt_packet_alloc_req_create(cdt_packet_t *packet) {
   packet->type = CDT_PACKET_ALLOC_REQ;
-  packet->size = sizeof(peer_id);
-
-  peer_id = htonl(peer_id);
-  memmove(packet->data, &peer_id, sizeof(peer_id));
+  packet->size = 0;
 }
 
-void cdt_packet_alloc_req_parse(cdt_packet_t *packet, uint32_t *peer_id) {
+void cdt_packet_alloc_req_parse(cdt_packet_t *packet) {
   assert(packet->type == CDT_PACKET_ALLOC_REQ);
-
-  memmove(peer_id, packet->data, sizeof(*peer_id));
-  *peer_id = ntohl(*peer_id);
 }
 
 void cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page) {

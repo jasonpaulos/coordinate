@@ -62,8 +62,8 @@ void cdt_packet_new_peer_parse(cdt_packet_t *packet, uint32_t *peer_id, char **a
 void cdt_packet_existing_peer_create(cdt_packet_t *packet, uint32_t peer_id);
 void cdt_packet_existing_peer_parse(cdt_packet_t *packet, uint32_t *peer_id);
 
-void cdt_packet_alloc_req_create(cdt_packet_t *packet, uint32_t peer_id);
-void cdt_packet_alloc_req_parse(cdt_packet_t *packet, uint32_t *peer_id);
+void cdt_packet_alloc_req_create(cdt_packet_t *packet);
+void cdt_packet_alloc_req_parse(cdt_packet_t *packet);
 
 void cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page);
 void cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t *page);

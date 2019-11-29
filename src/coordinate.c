@@ -33,7 +33,7 @@ void* cdt_malloc(size_t size) {
   }
   // Not the manager, so send msg to manager requesting allocation
   cdt_packet_t packet;
-  cdt_packet_alloc_req_create(&packet, host->self_id);
+  cdt_packet_alloc_req_create(&packet);
   
   if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
     fprintf(stderr, "Failed to send allocation request packet\n");

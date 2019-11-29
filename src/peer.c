@@ -142,12 +142,11 @@ void* cdt_peer_thread(void *arg) {
     }
 
     if (packet.type == CDT_PACKET_ALLOC_REQ && host->manager == 1) { // only the manager can allocate a page
-      uint32_t peer_id;
-      cdt_packet_alloc_req_parse(&packet, &peer_id);
-      printf("Received allocation request from peer %d\n", peer_id);
+      cdt_packet_alloc_req_parse(&packet);
+      printf("Received allocation request from peer %d\n", peer->id);
 
       if (cdt_worker_start(peer, cdt_allocate_shared_page) != 0) {
-        fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
+        fprintf(stderr, "Failed to allocate new page for peer %d\n", peer->id);
         break;
       }
     }
