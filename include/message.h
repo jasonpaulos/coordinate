@@ -8,6 +8,7 @@
 #define QUEUE_PERMISSIONS 0660
 #define MAX_MESSAGES 10 // this is a limit enforced by mqueue (see mq_overview man page)
 #define MSG_SIZE sizeof(cdt_message_t)
+#define WORKER_QUEUE_NAME_PREFIX "/workerThreadForPeer"
 
 // Message types
 #define ALLOCATE_RESP 0

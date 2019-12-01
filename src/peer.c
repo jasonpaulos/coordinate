@@ -14,6 +14,29 @@ int cdt_worker_start(cdt_peer_t *peer, void * (*worker_task)(void *)) {
   return pthread_create(&peer->worker_thread, NULL, worker_task, (void*)peer);
 }
 
+char * get_worker_mqueue_name(int peer_id) {
+  char str_peer_id[32] = WORKER_QUEUE_NAME_PREFIX;
+  sprintf(str_peer_id, "%d", peer_id);
+  printf(str_peer_id);
+}
+
+/* Every worker thread function should call this to set up its message queue if it will need messages passed
+   to it from other receiving threads. */
+int cdt_setup_message_queue(cdt_peer_t *peer, mqd_t * mqueue_fd) {
+  struct mq_attr attr;
+
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = MAX_MESSAGES;
+  attr.mq_msgsize = MSG_SIZE;
+  attr.mq_curmsgs = 0;
+
+  if ((*qd_manager_peer_thread = mq_open (get_worker_mqueue_name(peer->id), O_RDONLY | O_CREAT, QUEUE_PERMISSIONS, &attr)) == -1) {
+    debug_print("Main thread failed to create message queue to manager peer-thread, \n");
+    perror("Error num");
+    return -1;
+  }
+}
+
 int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer_address, const char *peer_port) {
   if (!host)
     return -1;
