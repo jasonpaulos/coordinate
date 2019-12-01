@@ -43,6 +43,9 @@
           "description": "Enable pretty-printing for gdb",
           "text": "-enable-pretty-printing",
           "ignoreFailures": true
+        }, {
+          "description": "Set follow fork mode to child",
+          "text": "-gdb-set follow-fork-mode child"
         }
       ],
       "miDebuggerServerAddress": "localhost:26100"

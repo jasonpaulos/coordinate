@@ -72,7 +72,7 @@ void cdt_packet_new_peer_parse(cdt_packet_t *packet, uint32_t *peer_id, char **a
   memmove(peer_id, packet->data, sizeof(*peer_id));
   *peer_id = ntohl(*peer_id);
 
-  *address = packet->data + sizeof(peer_id);
+  *address = packet->data + sizeof(*peer_id);
   *port = *address + strlen(*address) + 1;
 }
 

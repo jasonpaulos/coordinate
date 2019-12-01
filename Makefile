@@ -12,7 +12,7 @@ ODIR_DSM = $(ODIR)/dsm
 INSTALL_DIR = /usr/local
 
 CC = gcc
-CFLAGS_CLI = -Wall -Werror -O2 -g
+CFLAGS_CLI = -Wall -Werror -g
 CFLAGS_DSM = $(CFLAGS_CLI) -fPIC -I$(IDIR) -lrt -lpthread -D DEBUG=1
 CFLAGS_LOC = $(CFLAGS_DSM) -D COORDINATE_LOCAL
 LDFLAGS = -shared -Wl,-soname,$(@F)
