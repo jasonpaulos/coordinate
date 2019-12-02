@@ -1,7 +1,8 @@
 #ifndef COORDINATE_PEER_H
 #define COORDINATE_PEER_H
 
-#include <pthread.h>
+#include <mqueue.h>
+#include "thread.h"
 #include "connection.h"
 
 typedef struct cdt_host_t cdt_host_t;
@@ -16,18 +17,31 @@ typedef struct cdt_peer_t {
   pthread_t read_thread;
   /* The network connection associated with this peer. */
   cdt_connection_t connection;
+
+  /* The thread that this peer may be running. */
+  cdt_thread_t thread;
+
+  mqd_t task_queue;
 } cdt_peer_t;
 
 /**
- * Start a peer reading thread. peer must be already initialized to a valid cdt_peer_t object.
+ * Setup the task queue associated with this peer.
+ */
+int cdt_peer_setup_task_queue(cdt_peer_t *peer);
+
+/**
+ * Start a peer reading thread.
+ * 
+ * peer must be already initialized to a valid cdt_peer_t object, but its task
+ * queue should NOT be initialized.
  */
 int cdt_peer_start(cdt_peer_t *peer);
 
 /**
- * Wait for the peer reading thred to finish.
+ * Wait for the peer reading thread to finish.
  */
 void cdt_peer_join(cdt_peer_t *peer);
 
-int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) ;
+int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
 
 #endif
