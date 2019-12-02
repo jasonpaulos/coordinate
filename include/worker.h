@@ -8,4 +8,8 @@
  */
 void* cdt_worker_thread_create(void *arg);
 
+int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
+
+int cdt_allocate_shared_page(cdt_peer_t * peer);
+
 #endif

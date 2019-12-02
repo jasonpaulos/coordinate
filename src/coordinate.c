@@ -4,6 +4,7 @@
 #include "host.h"
 #include "packet.h"
 #include "coordinate.h"
+#include "worker.h"
 
 extern mqd_t qd_manager_peer_thread;
 
@@ -18,7 +19,7 @@ void* cdt_malloc(size_t size) {
   if (host->manager) {
     printf("Manager trying to malloc\n");
     cdt_manager_pte_t * fresh_pte;
-    if (cdt_find_unused_pte(&fresh_pte, 0) < 0) {
+    if (cdt_find_unused_pte(&fresh_pte, host->self_id) < 0) {
       return NULL;
     }
     // If we've gotten to this point, assume we're holding fresh_pte's lock
