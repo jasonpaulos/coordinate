@@ -25,7 +25,15 @@ typedef struct cdt_peer_t {
 } cdt_peer_t;
 
 /**
- * Start a peer reading thread. peer must be already initialized to a valid cdt_peer_t object.
+ * Setup the task queue associated with this peer.
+ */
+int cdt_peer_setup_task_queue(cdt_peer_t *peer);
+
+/**
+ * Start a peer reading thread.
+ * 
+ * peer must be already initialized to a valid cdt_peer_t object, but its task
+ * queue should NOT be initialized.
  */
 int cdt_peer_start(cdt_peer_t *peer);
 

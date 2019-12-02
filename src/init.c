@@ -8,7 +8,6 @@
 #include "connection.h"
 #include "packet.h"
 #include "host.h"
-#include "message.h"
 #include "init.h"
 
 mqd_t qd_manager_peer_thread;
@@ -182,20 +181,8 @@ int cdt_main(int argc, char **argv) {
 
     host->peers_to_be_connected &= ((1 << host->self_id) - 1); // initialize to 1s between 0 (exclusive) and host.self_id (exclusive)
     
-    struct mq_attr attr;
-
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = MAX_MESSAGES;
-    attr.mq_msgsize = MSG_SIZE;
-    attr.mq_curmsgs = 0;
-
-    if ((qd_manager_peer_thread = mq_open (MAIN_MANAGER_QUEUE_NAME, O_RDONLY | O_CREAT, QUEUE_PERMISSIONS, &attr)) == -1) {
-      debug_print("Main thread failed to create message queue to manager receiver-thread, \n");
-      perror("Error num");
-      return -1;
-    }
-    
     cdt_peer_start(&host->peers[0]);
+    cdt_peer_setup_task_queue(&host->peers[host->self_id]);
 
     printf("Connection successful\n");
   }

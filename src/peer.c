@@ -5,7 +5,6 @@
 #include "util.h"
 #include "packet.h"
 #include "host.h"
-#include "message.h"
 
 int cdt_peer_greet_existing_peer(cdt_host_t *host, int peer_id, const char *peer_address, const char *peer_port) {
   if (!host)
@@ -98,10 +97,7 @@ int cdt_allocate_shared_page(int peer_id, cdt_peer_t * peer) {
   return 0;
 }
 
-void* cdt_peer_thread(void *arg) {
-  cdt_peer_t *peer = (cdt_peer_t*)arg;
-  cdt_host_t *host = cdt_get_host();
-
+int cdt_peer_setup_task_queue(cdt_peer_t *peer) {
   struct mq_attr task_queue_attr = {
     .mq_maxmsg = 10,
     .mq_msgsize = sizeof(cdt_packet_t),
@@ -110,8 +106,18 @@ void* cdt_peer_thread(void *arg) {
   peer->task_queue = mq_open(cdt_task_queue_names[peer->id], O_RDWR | O_CREAT, 0660, &task_queue_attr);
   if (peer->task_queue == -1) {
     debug_print("Failed to create task queue %s for peer %d\n", cdt_task_queue_names[peer->id], peer->id);
-    return NULL;
+    return -1;
   }
+
+  return 0;
+}
+
+void* cdt_peer_thread(void *arg) {
+  cdt_peer_t *peer = (cdt_peer_t*)arg;
+  cdt_host_t *host = cdt_get_host();
+
+  if (cdt_peer_setup_task_queue(peer) != 0)
+    return NULL;
 
   while(1) {
     cdt_packet_t packet;
@@ -131,9 +137,7 @@ void* cdt_peer_thread(void *arg) {
       }
 
       printf("Greeted new peer %d at %s:%s\n", peer_id, address, port);
-    }
-
-    if (packet.type == CDT_PACKET_ALLOC_REQ && host->manager == 1) { // only the manager can allocate a page
+    } else if (packet.type == CDT_PACKET_ALLOC_REQ && host->manager == 1) { // only the manager can allocate a page
       uint32_t peer_id;
       cdt_packet_alloc_req_parse(&packet, &peer_id);
       printf("Received allocation request from peer %d\n", peer_id);
@@ -142,23 +146,17 @@ void* cdt_peer_thread(void *arg) {
         fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
         break;
       }
-    }
-
-    if (packet.type == CDT_PACKET_ALLOC_RESP) { 
-      assert(peer->id == 0);
+    } else if (packet.type == CDT_PACKET_ALLOC_RESP && peer->id == 0) { // only the manager (peer 0) can respond to allocation reqs
       uint64_t page;
       cdt_packet_alloc_resp_parse(&packet, &page);
       printf("Received allocation response with page %p\n", (void *)page);
 
-      cdt_message_t allocation_message;
-      allocation_message.type = ALLOCATE_RESP;
-      allocation_message.shared_va = page;
-
-      if (mq_send(qd_main_thread, (char *)&allocation_message, sizeof(allocation_message), 0) == -1) {
-        debug_print ("Failed to send allocation response message to main thread\n");
+      if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
+        debug_print("Failed to send allocation response message to main thread\n");
         return NULL;
       }
-      printf("Sent allocation response message to main thread\n");
+    } else if (packet.type % 2 == 1) {
+      // TODO: handle response packet
     }
 
     // TODO: handle other packets

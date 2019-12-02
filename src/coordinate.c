@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "host.h"
 #include "packet.h"
-#include "message.h"
 #include "coordinate.h"
 
 extern mqd_t qd_manager_peer_thread;
@@ -40,17 +39,17 @@ void* cdt_malloc(size_t size) {
     return NULL;
   }
 
-  cdt_message_t allocation_response;
-
-  if (mq_receive (qd_manager_peer_thread, (char *)&allocation_response, sizeof(allocation_response), NULL) == -1) {
+  if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
     debug_print("Failed to receive a message from manager receiver-thread\n");
     return NULL;
   }
 
-  printf("Received message from manager receiver-thread with type %d and shared VA %p\n", 
-    allocation_response.type, (void *)allocation_response.shared_va);
+  uint64_t page_address;
+  cdt_packet_alloc_resp_parse(&packet, &page_address);
 
-  int pte_idx = SHARED_VA_TO_IDX(allocation_response.shared_va);
+  printf("Received packet from manager receiver-thread with shared VA %p\n", (void*)page_address);
+
+  int pte_idx = SHARED_VA_TO_IDX(page_address);
   printf("pte idx: %d\n", pte_idx);
   pthread_mutex_lock(&host->shared_pagetable[pte_idx].lock);
   host->shared_pagetable[pte_idx].in_use = 1;
@@ -59,7 +58,7 @@ void* cdt_malloc(size_t size) {
   printf("Filled in PTE index %d with new local pointer %p\n", pte_idx, host->shared_pagetable[pte_idx].page);
   pthread_mutex_unlock(&host->shared_pagetable[pte_idx].lock);
 
-  return (void *)allocation_response.shared_va;
+  return (void *)page_address;
 }
 
 void cdt_free(void *ptr) {
