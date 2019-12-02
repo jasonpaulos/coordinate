@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
-#include <mqueue.h>
 #include "util.h"
 #include "packet.h"
 #include "host.h"
@@ -103,14 +102,15 @@ void* cdt_peer_thread(void *arg) {
   cdt_peer_t *peer = (cdt_peer_t*)arg;
   cdt_host_t *host = cdt_get_host();
 
-  // queue descriptor for message queue TO the main thread (W/O) - only valid if this is the manage receiver-thread
-  mqd_t qd_main_thread = 0;
-  // Check if this is the manager receiver-thread - if so, open up the message queue to the main thread
-  if (peer->id == 0) {
-    if ((qd_main_thread = mq_open(MAIN_MANAGER_QUEUE_NAME, O_WRONLY)) == -1) {
-        debug_print("Main thread failed to create message queue to manager receiver-thread\n");
-        return NULL; // TODO: is there a better failure return val?
-    }
+  struct mq_attr task_queue_attr = {
+    .mq_maxmsg = 10,
+    .mq_msgsize = sizeof(cdt_packet_t),
+  };
+
+  peer->task_queue = mq_open(cdt_task_queue_names[peer->id], O_RDWR | O_CREAT, 0660, &task_queue_attr);
+  if (peer->task_queue == -1) {
+    debug_print("Failed to create task queue %s for peer %d\n", cdt_task_queue_names[peer->id], peer->id);
+    return NULL;
   }
 
   while(1) {

@@ -10,6 +10,41 @@ cdt_host_t cdt_host = {
   .manager = -1
 };
 
+const char* const cdt_task_queue_names[] = {
+  "/coordinate00",
+  "/coordinate01",
+  "/coordinate02",
+  "/coordinate03",
+  "/coordinate04",
+  "/coordinate05",
+  "/coordinate06",
+  "/coordinate07",
+  "/coordinate08",
+  "/coordinate09",
+  "/coordinate10",
+  "/coordinate11",
+  "/coordinate12",
+  "/coordinate13",
+  "/coordinate14",
+  "/coordinate15",
+  "/coordinate16",
+  "/coordinate17",
+  "/coordinate18",
+  "/coordinate19",
+  "/coordinate20",
+  "/coordinate21",
+  "/coordinate22",
+  "/coordinate23",
+  "/coordinate24",
+  "/coordinate25",
+  "/coordinate26",
+  "/coordinate27",
+  "/coordinate28",
+  "/coordinate29",
+  "/coordinate30",
+  "/coordinate31",
+};
+
 void* cdt_host_thread(void *arg) {
   printf("Host started\n");
 
@@ -141,10 +176,10 @@ cdt_host_t* cdt_host_init(int manager, cdt_server_t *server, uint32_t peers_to_b
   pthread_mutex_init(&cdt_host.thread_lock, NULL);
   if (manager) {
     cdt_host.num_threads = 1;
-    cdt_host.self_thread = &cdt_host.threads[0];
-    cdt_host.self_thread->valid = 1;
-    cdt_host.self_thread->remote_peer_id = cdt_host.self_id;
-    cdt_host.self_thread->remote_thread_id = cdt_host.thread_counter++;
+    cdt_thread_t *self_thread = &cdt_host.peers[cdt_host.self_id].thread;
+    self_thread->valid = 1;
+    self_thread->remote_peer_id = cdt_host.self_id;
+    self_thread->remote_thread_id = cdt_host.thread_counter++;
   }
 
   return &cdt_host;

@@ -1,7 +1,6 @@
 #include <stdlib.h>
-#include "packet.h"
 #include "host.h"
-#include "util.h"
+#include "packet.h"
 
 cdt_thread_t cdt_thread_self() {
 #ifdef COORDINATE_LOCAL
@@ -11,12 +10,18 @@ cdt_thread_t cdt_thread_self() {
   return self;
 #else
   cdt_host_t *host = cdt_get_host();
-  if (!host || !host->self_thread) {
+  if (!host) {
+    debug_print("Host not yet started");
+    exit(-1);
+  }
+
+  cdt_thread_t *self_thread = &host->peers[host->self_id].thread;
+  if (!self_thread->valid) {
     debug_print("Host thread not yet started");
     exit(-1);
   }
 
-  return *host->self_thread;
+  return *self_thread;
 #endif
 }
 
@@ -35,10 +40,10 @@ int cdt_thread_create_local(cdt_thread_t *thread, void *(*start_routine) (void *
 /**
  * host->thread_lock MUST be held before calling this
  */
-int cdt_thread_create_remote(cdt_host_t *host, cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
+int cdt_thread_create_remote(cdt_host_t *host, cdt_thread_t *thread, uint64_t start_routine, uint64_t arg) {
   if (!host->manager) {
     cdt_packet_t packet;
-    cdt_packet_thread_create_req_create(&packet, (uint64_t)start_routine, (uint64_t)arg);
+    cdt_packet_thread_create_req_create(&packet, start_routine, arg);
 
     if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
       debug_print("Failed to send thread create request to manager\n");
@@ -47,74 +52,67 @@ int cdt_thread_create_remote(cdt_host_t *host, cdt_thread_t *thread, void *(*sta
 
     // TODO: wait for CDT_PACKET_THREAD_CREATE_RESP
 
-    // cdt_packet_thread_create_resp_parse(&packet, thread);
+    cdt_packet_thread_create_resp_parse(&packet, thread);
 
-    // TODO: add thread to host->threads
+    // TODO: add thread to host->threads ?
 
     return 0;
   }
 
-  uint32_t thread_mask = 0;
-  for (uint32_t i = 0; i < CDT_MAX_THREADS; i++) {
-    if (host->threads[i].valid) {
-      thread_mask |= 1 << host->threads[i].remote_peer_id;
-    }
-  }
-
-  uint32_t idle_peer = CDT_MAX_MACHINES;
+  cdt_peer_t *idle_peer = NULL;
 
   for (uint32_t i = 0; i < CDT_MAX_MACHINES; i++) {
-    if (!(thread_mask & (1 << i))) {
-      idle_peer = i;
+    cdt_peer_t *peer = host->peers + i;
+    if (!peer->thread.valid) {
+      idle_peer = peer;
       break;
     }
   }
 
-  if (idle_peer == CDT_MAX_MACHINES) { // no idle peers
+  if (idle_peer == NULL) {
+    debug_print("No idle peers\n");
     return -1;
   }
 
-  thread->remote_peer_id = idle_peer;
-  thread->remote_thread_id = host->thread_counter++;
+  
+  idle_peer->thread.remote_peer_id = idle_peer->id;
+  idle_peer->thread.remote_thread_id = host->thread_counter++;
 
   cdt_packet_t packet;
-  cdt_packet_thread_assign_req_create(&packet, (uint64_t)start_routine, (uint64_t)arg, thread->remote_thread_id);
+  cdt_packet_thread_assign_req_create(&packet, start_routine, arg, idle_peer->thread.remote_thread_id);
 
-  if (cdt_connection_send(&host->peers[idle_peer].connection, &packet) != 0) {
-    debug_print("Failed to send thread assign request for thread %d to peer %d\n", thread->remote_thread_id, idle_peer);
+  if (cdt_connection_send(&idle_peer->connection, &packet) != 0) {
+    debug_print("Failed to send thread assign request for thread %d to peer %d\n", idle_peer->thread.remote_thread_id, idle_peer->id);
     return -1;
   }
 
   // TODO: wait for CDT_PACKET_THREAD_ASSIGN_RESP
 
-  return -1;
+  uint32_t status;
+  cdt_packet_thread_assign_resp_parse(&packet, &status);
+
+  if (status != 0) {
+    debug_print("Failed to assign thread to peer %d\n", idle_peer->id);
+    return -1;
+  }
+
+  idle_peer->thread.valid = 1;
+  *thread = idle_peer->thread;
+
+  return 0;
 }
 
 int cdt_thread_create(cdt_thread_t *thread, void *(*start_routine) (void *), void *arg) {
   cdt_host_t *host = cdt_get_host();
   if (!host) {
-    debug_print("Host not yet started");
+    debug_print("Host not yet started\n");
     return -1;
   }
 
   pthread_mutex_lock(&host->thread_lock);
 
   if (host->num_threads >= host->num_peers) {
-    debug_print("Maximum number of threads exceeded");
-    return -1;
-  }
-
-  cdt_thread_t *system_thread = NULL;
-
-  for (int i = 0; i < CDT_MAX_MACHINES; i++) {
-    if (!host->threads[i].valid) {
-      system_thread = &host->threads[i];
-      break;
-    }
-  }
-
-  if (system_thread == NULL) {
-    debug_print("Error: no idle threads. Maybe num_threads has drifted?");
+    debug_print("Maximum number of threads exceeded\n");
     return -1;
   }
 
@@ -122,13 +120,11 @@ int cdt_thread_create(cdt_thread_t *thread, void *(*start_routine) (void *), voi
 #ifdef COORDINATE_LOCAL
   res = cdt_thread_create_local(thread, start_routine, arg);
 #else
-  res = cdt_thread_create_remote(host, thread, start_routine, arg);
+  res = cdt_thread_create_remote(host, thread, (uint64_t)start_routine, (uint64_t)arg);
 #endif
 
-  if (res == 0) {
+  if (res == 0)
     host->num_threads++;
-    *thread = *system_thread;
-  }
 
   pthread_mutex_unlock(&host->thread_lock);
 
