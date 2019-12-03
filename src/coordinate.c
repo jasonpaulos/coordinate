@@ -108,6 +108,14 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
         cdt_packet_write_resp_parse(&resp_packet, &page);
         debug_print("Parsed write response packet from manager\n");
         // Update machine PTE access and page
+        host->shared_pagetable[va_idx].access = READ_WRITE_PAGE;
+        host->shared_pagetable[va_idx].in_use = 1;
+        host->shared_pagetable[va_idx].page = calloc(1, PAGESIZE);
+
+        void * local_copy = host->shared_pagetable[va_idx].page;
+        memmove(local_copy, page, PAGESIZE);
+        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+        memmove(((void *)(uint64_t)local_copy + offset), src, n);
         
         pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
         return dest;

@@ -5,7 +5,7 @@
 
 void* print_message(void* arg) {
   printf("Hello from the second thread, my arg is %p\n", arg);
-  void * dest = (void *)((1L << 32) + 5);
+  void * dest = (void *)((1L << 32) + 1);
   char * src = "a";
   printf("Trying to memcpy dest %p with src %p\n", dest, src);
   cdt_memcpy(dest, src, 1);
