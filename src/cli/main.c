@@ -4,6 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <sys/personality.h>
 
 int main(int argc, char *argv[]) {
   int coordinate_argc = -1;
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (argc < 2 || coordinate_argc == -1) {
-    fprintf(stderr, "Usage: %s --host IP:PORT [--connect IP:PORT] COMMAND [INITIAL_ARGS]...\n", argv[0]);
+    fprintf(stderr, "Usage: %s --host IP:PORT [--cores CORES --connect IP:PORT] COMMAND [COMMAND_ARGS]\n", argv[0]);
     return -1;
   }
 
@@ -48,6 +49,13 @@ int main(int argc, char *argv[]) {
     if (putenv("LD_PRELOAD=libcoordinate.dsm.so") != 0) {
       fprintf(stderr, "%s: Failed to set LD_PRELOAD\n", argv[0]);
       return -1;
+    }
+
+    if (personality(ADDR_NO_RANDOMIZE) == -1) {
+      // Disable address space layout randomization so that functions will be located at the same
+      // addresses across the different machines. This is essential to allowing threads to be
+      // started on other machines using just a pointer to a function.
+      fprintf(stderr, "%s: Failed to disable address space layout randomization: %s\n", argv[0], strerror(errno));
     }
 
     execvp(argv[coordinate_argc], argv + coordinate_argc);
@@ -104,7 +112,7 @@ int main(int argc, char *argv[]) {
   int status;
   wait(&status);
   if (status != 0) {
-    fprintf(stderr, "%s: Failed to start user process\n", argv[0]);
+    fprintf(stderr, "%s: User process exited with status code %d\n", argv[0], status);
   }
 
   return status;

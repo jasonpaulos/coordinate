@@ -5,6 +5,15 @@
 #include "packet.h"
 #include "util.h"
 
+uint32_t cdt_packet_response_get_requester(cdt_packet_t *packet) {
+  assert(packet->type % 2 == 1);
+
+  uint32_t requester_id;
+  memmove(&requester_id, packet->data, sizeof(requester_id));
+
+  return ntohl(requester_id);
+}
+
 int cdt_packet_self_identify_create(cdt_packet_t *packet, const char *address, const char *port) {
   int address_len = strlen(address) + 1; // + 1 to include null terminating character
   int port_len = strlen(port) + 1;
@@ -144,62 +153,76 @@ void cdt_packet_thread_create_req_parse(cdt_packet_t *packet, uint64_t *procedur
 void cdt_packet_thread_create_resp_create(cdt_packet_t *packet, cdt_thread_t *thread) {
   packet->type = CDT_PACKET_THREAD_CREATE_RESP;
 
+  char valid = !!thread->valid;
   uint32_t data[2] = {
     htonl(thread->remote_peer_id),
     htonl(thread->remote_thread_id)
   };
 
-  packet->size = sizeof(data);
+  packet->size = sizeof(valid) + sizeof(data);
 
-  memmove(packet->data, data, sizeof(data));
+  memmove(packet->data, &valid, sizeof(valid));
+  memmove(packet->data + sizeof(valid), data, sizeof(data));
 }
 
 void cdt_packet_thread_create_resp_parse(cdt_packet_t *packet, cdt_thread_t *thread) {
   assert(packet->type == CDT_PACKET_THREAD_CREATE_RESP);
 
+  char valid;
   uint32_t data[2];
-  memmove(data, packet->data, sizeof(data));
+  memmove(&valid, packet->data, sizeof(valid));
+  memmove(data + sizeof(valid), packet->data, sizeof(data));
 
+  thread->valid = valid;
   thread->remote_peer_id = ntohl(data[0]);
   thread->remote_thread_id = ntohl(data[1]);
 }
 
-void cdt_packet_thread_assign_req_create(cdt_packet_t *packet, uint64_t procedure, uint64_t arg, uint32_t thread_id) {
+void cdt_packet_thread_assign_req_create(cdt_packet_t *packet, uint32_t parent_id, uint64_t procedure, uint64_t arg, uint32_t thread_id) {
   packet->type = CDT_PACKET_THREAD_ASSIGN_REQ;
-  packet->size = sizeof(procedure) + sizeof(arg) + sizeof(thread_id);
+  packet->size = sizeof(parent_id) + sizeof(procedure) + sizeof(arg) + sizeof(thread_id);
 
+  parent_id = htonl(parent_id);
   procedure = htonll(procedure);
   arg = htonll(arg);
   thread_id = htonl(thread_id);
-  memmove(packet->data, &procedure, sizeof(procedure));
-  memmove(packet->data + sizeof(procedure), &arg, sizeof(arg));
-  memmove(packet->data + sizeof(procedure) + sizeof(arg), &thread_id, sizeof(thread_id));
+  memmove(packet->data, &parent_id, sizeof(parent_id));
+  memmove(packet->data + sizeof(parent_id), &procedure, sizeof(procedure));
+  memmove(packet->data + sizeof(parent_id) + sizeof(procedure), &arg, sizeof(arg));
+  memmove(packet->data + sizeof(parent_id) + sizeof(procedure) + sizeof(arg), &thread_id, sizeof(thread_id));
 }
 
-void cdt_packet_thread_assign_req_parse(cdt_packet_t *packet, uint64_t *procedure, uint64_t *arg, uint32_t *thread_id) {
+void cdt_packet_thread_assign_req_parse(cdt_packet_t *packet, uint32_t *parent_id, uint64_t *procedure, uint64_t *arg, uint32_t *thread_id) {
   assert(packet->type == CDT_PACKET_THREAD_ASSIGN_REQ);
 
-  memmove(procedure, packet->data, sizeof(*procedure));
-  memmove(arg, packet->data + sizeof(*procedure), sizeof(*arg));
-  memmove(thread_id, packet->data + sizeof(*procedure) + sizeof(*arg), sizeof(*thread_id));
+  memmove(parent_id, packet->data, sizeof(*parent_id));
+  memmove(procedure, packet->data + sizeof(*parent_id), sizeof(*procedure));
+  memmove(arg, packet->data + sizeof(*parent_id) + sizeof(*procedure), sizeof(*arg));
+  memmove(thread_id, packet->data + sizeof(*parent_id) + sizeof(*procedure) + sizeof(*arg), sizeof(*thread_id));
 
+  *parent_id = ntohl(*parent_id);
   *procedure = ntohll(*procedure);
   *arg = ntohll(*arg);
   *thread_id = ntohl(*thread_id);
 }
 
-void cdt_packet_thread_assign_resp_create(cdt_packet_t *packet, uint32_t status) {
+void cdt_packet_thread_assign_resp_create(cdt_packet_t *packet, uint32_t requester_id, uint32_t status) {
   packet->type = CDT_PACKET_THREAD_ASSIGN_RESP;
-  packet->size = sizeof(status);
+  packet->size = sizeof(requester_id) + sizeof(status);
 
+  requester_id = htonl(requester_id);
   status = htonl(status);
-  memmove(packet->data, &status, sizeof(status));
+  memmove(packet->data, &requester_id, sizeof(requester_id));
+  memmove(packet->data + sizeof(requester_id), &status, sizeof(status));
 }
 
-void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *status) {
+void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *requester_id, uint32_t *status) {
   assert(packet->type == CDT_PACKET_THREAD_ASSIGN_RESP);
 
-  memmove(status, packet->data, sizeof(*status));
+  memmove(requester_id, packet->data, sizeof(*requester_id));
+  memmove(status, packet->data + sizeof(*requester_id), sizeof(*status));
+
+  *requester_id = ntohl(*requester_id);
   *status = ntohl(*status);
 }
 

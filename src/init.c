@@ -10,8 +10,6 @@
 #include "host.h"
 #include "init.h"
 
-mqd_t qd_manager_peer_thread;
-
 int cdt_init_get_args(char ***_argv) {
   int header[3];
 
@@ -81,7 +79,7 @@ int cdt_init_get_args(char ***_argv) {
 
 int cdt_main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s --host IP:PORT [--connect IP:PORT] COMMAND [INITIAL_ARGS]...\n", argv[0]);
+    fprintf(stderr, "Usage: %s --host IP:PORT [--cores CORES --connect IP:PORT] COMMAND [COMMAND_ARGS]\n", argv[0]);
     return -1;
   }
 
@@ -101,8 +99,21 @@ int cdt_main(int argc, char **argv) {
     }
   }
 
+  int cores_index = 0;
+  for (int i = 1; i < argc - 1; i++) {
+    if (strcmp(argv[i], "--cores") == 0) {
+      cores_index = i + 1;
+      break;
+    }
+  }
+
   if (!host_index) {
     fprintf(stderr, "Missing --host option\n");
+    return -1;
+  }
+
+  if (cores_index == connection_index) {
+    fprintf(stderr, "Must specify one of --cores or --connection options\n");
     return -1;
   }
 
@@ -130,6 +141,15 @@ int cdt_main(int argc, char **argv) {
     *lastColon = 0;
   }
 
+  int cores = 0;
+  if (cores_index) {
+    cores = atoi(argv[cores_index]);
+    if (cores < 1 || cores > CDT_MAX_MACHINES) {
+      fprintf(stderr, "Invalid value for cores: %s\n", argv[cores_index]);
+      return -1;
+    }
+  }
+
   cdt_server_t server;
   if (cdt_server_create(&server, host_address, host_port) == -1) {
     fprintf(stderr, "Cannot create server\n");
@@ -142,7 +162,8 @@ int cdt_main(int argc, char **argv) {
 
   printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
   
-  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, ~1);
+  uint32_t core_set = (1 << cores) - 2; // create a set where each bit from 1 to cores is 1, and the 0th bit is 0
+  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, core_set);
 
   if (connection_index) {
     cdt_connection_t *manager_connection = &host->peers[0].connection;
@@ -180,12 +201,14 @@ int cdt_main(int argc, char **argv) {
     }
 
     host->peers_to_be_connected &= ((1 << host->self_id) - 1); // initialize to 1s between 0 (exclusive) and host.self_id (exclusive)
-    
+    host->peers[host->self_id].id = host->self_id;
+
     cdt_peer_start(&host->peers[0]);
-    cdt_peer_setup_task_queue(&host->peers[host->self_id]);
 
     printf("Connection successful\n");
   }
+
+  cdt_peer_setup_task_queue(&host->peers[host->self_id]);
 
   if (cdt_host_start() != 0) {
     fprintf(stderr, "Cannot start host thread\n");
@@ -196,17 +219,28 @@ int cdt_main(int argc, char **argv) {
 
   printf("Peers done connecting\n");
 
-  for (int i = 0; i < host->num_peers; i++) {
-    cdt_peer_t *peer = &host->peers[i];
-    if (peer->id == host->self_id) continue;
+  if (!host->manager) {
+    for (int i = 0; i < host->num_peers; i++) {
+      cdt_peer_t *peer = &host->peers[i];
+      if (peer->id == host->self_id) continue;
 
-    cdt_peer_join(peer);
-    cdt_connection_close(&peer->connection);
+      cdt_peer_join(peer);
+      cdt_connection_close(&peer->connection);
+    }
+
+    cdt_server_close(&server);
+    exit(0);
   }
 
-  cdt_server_close(&server);
-
   return 0;
+}
+
+void cdt_cleanup() {
+  cdt_host_t *host = cdt_get_host();
+  if (host) {
+    cdt_server_close(host->server);
+    // TODO: cleanup everything else, including message queues
+  }
 }
 
 void cdt_init() {
@@ -224,11 +258,11 @@ void cdt_init() {
 
   int status = cdt_main(argc, argv);
 
+  atexit(cdt_cleanup);
+
   if (status != 0) {
     free(argv);
     exit(status);
   }
-
-  // exit if status == 0 ?
 #endif
 }
