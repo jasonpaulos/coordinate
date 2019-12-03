@@ -22,6 +22,7 @@ typedef struct cdt_peer_t {
   cdt_thread_t thread;
 
   mqd_t task_queue;
+  pthread_t worker_thread;
 } cdt_peer_t;
 
 /**
