@@ -115,6 +115,24 @@ cdt_thread_t* cdt_worker_do_thread_create(cdt_host_t *host, cdt_peer_t *sender, 
   return &idle_peer->thread;
 }
 
+int cdt_worker_do_thread_assign(cdt_host_t *host, cdt_peer_t *sender,
+                                uint32_t parent_id, uint64_t procedure, uint64_t arg, uint32_t thread_id) {
+  cdt_peer_t *self = &host->peers[host->self_id];
+  if (self->thread.valid)
+    return 1;
+
+  self->thread.remote_peer_id = host->self_id;
+  self->thread.remote_thread_id = thread_id;
+  self->thread.valid = 1;
+
+  if (pthread_create(&self->thread.local_id, NULL, (void*(*)(void*))procedure, (void*)arg) != 0) {
+    self->thread.valid = 0;
+    return 1;
+  }
+
+  return 0;
+}
+
 int cdt_worker_thread_assign(cdt_peer_t *sender, cdt_packet_t *packet) {
   cdt_host_t *host = cdt_get_host();
   if (!host) return -1;
@@ -136,46 +154,13 @@ int cdt_worker_thread_assign(cdt_peer_t *sender, cdt_packet_t *packet) {
 
   pthread_mutex_lock(&host->thread_lock);
 
-  cdt_peer_t *self = &host->peers[host->self_id];
-  if (self->thread.valid) {
-    pthread_mutex_unlock(&host->thread_lock);
-    
-    cdt_packet_thread_assign_resp_create(packet, parent_id, 1);
-
-    if (cdt_connection_send(&sender->connection, packet)) {
-      debug_print("Failed to reject thread assign request because of already running thread\n");
-      return -1;
-    }
-
-    return 0;
-  }
-
-  self->thread.remote_peer_id = host->self_id;
-  self->thread.remote_thread_id = thread_id;
-  self->thread.valid = 1;
-
-  if (pthread_create(&self->thread.local_id, NULL, (void*(*)(void*))procedure, (void*)arg) != 0) {
-    self->thread.valid = 0;
-    pthread_mutex_unlock(&host->thread_lock);
-
-    debug_print("Failed to start thread for procedure %p and arg %p\n", (void*)procedure, (void*)arg);
-
-    cdt_packet_thread_assign_resp_create(packet, parent_id, 1);
-
-    if (cdt_connection_send(&sender->connection, packet)) {
-      debug_print("Failed to reject thread assign request\n");
-      return -1;
-    }
-
-    return 0;
-  }
-
+  int res = cdt_worker_do_thread_assign(host, sender, parent_id, procedure, arg, thread_id);
+  
   pthread_mutex_unlock(&host->thread_lock);
 
-  cdt_packet_thread_assign_resp_create(packet, parent_id, 0);
-
+  cdt_packet_thread_assign_resp_create(packet, parent_id, res);
   if (cdt_connection_send(&sender->connection, packet)) {
-    debug_print("Failed to send thread assignment confirmation\n");
+    debug_print("Failed to sent thread assign response\n");
     return -1;
   }
 
