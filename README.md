@@ -19,7 +19,7 @@ sudo make install
 ```
 To start the Coordinate manager with the user program ./example/test/bin/test
 ```
-coordinate --host <args> ./example/test/bin/test <user program args>
+coordinate --host <args> --cores <number of machines> ./example/test/bin/test <user program args>
 ```
 To connect a Coordinate peer with the user program ./example/test/bin/test
 ```
