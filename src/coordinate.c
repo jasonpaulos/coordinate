@@ -1,6 +1,7 @@
 #include <mqueue.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "host.h"
 #include "packet.h"
 #include "coordinate.h"
@@ -66,7 +67,57 @@ void cdt_free(void *ptr) {
   // TODO
 }
 
-void* cdt_memcpy(void *dest, const void *src, size_t n) {
+int is_shared_va(void * addr) {
+  // TODO: ensure the user's malloc never gives them an address in the shared region?
+  return (uint64_t)addr >= CDT_SHARED_VA_START && (uint64_t)addr < CDT_SHARED_VA_END;
+}
+
+void* cdt_memcpy(void *dest, void *src, size_t n) {
+  // Write shared mem: src is local and dest is shared
+  // TODO: handle the case where we read or write beyond page boundaries - currently assuming only R/W within page bounds
+  if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
+    debug_print("write case\n");
+    cdt_host_t * host = cdt_get_host();
+    if (host->manager == 0) {
+      int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
+      pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
+      if (host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE) {
+        // Our machine has R/W access to the page, so go ahead and write to the page
+        void * local_copy = host->shared_pagetable[va_idx].page;
+        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+        memmove(((void *)(uint64_t)local_copy + offset), src, n);
+        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+        return dest;
+      } else {
+        // We don't have R/W access to the page, so request write access from the manager
+        cdt_packet_t packet;
+        cdt_packet_write_req_create(&packet, PGROUNDDOWN(dest));
+        if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
+          fprintf(stderr, "Failed to send allocation request packet\n");
+          return NULL;
+        }
+        debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)PGROUNDDOWN(dest), va_idx);
+
+        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
+          debug_print("Failed to receive a message from manager receiver-thread\n");
+          return NULL;
+        }
+
+        void * page;
+        cdt_packet_write_resp_parse(&packet, &page);
+        debug_print("Received write response packet from manager\n");
+      }
+    } else {
+      debug_print("manager write case\n");
+    }
+  }
+  // Read shared mem: dest is local and src is shared
+  if (is_shared_va(src) == 1 &&  is_shared_va(dest) == 0) {
+    
+  }
+
   // TODO
+  // Case 3: src is local and dest is local
+  // Case 4: src is shared and dest is shared
   return NULL;
 }

@@ -16,6 +16,12 @@ void* cdt_worker_thread_start(void *arg) {
       break;
     case CDT_PACKET_THREAD_ASSIGN_REQ:
       res = cdt_worker_thread_assign(peer, &packet);
+    case CDT_PACKET_READ_REQ:
+      // Handle a read request from a peer machine here
+      break;
+    case CDT_PACKET_WRITE_REQ:
+      debug_print("Received a write request from peer %d\n", peer->id);
+      res = cdt_worker_write_req(peer, &packet);
       break;
     // more cases...
     default:
@@ -29,6 +35,49 @@ void* cdt_worker_thread_start(void *arg) {
   }
 
   return NULL;
+}
+
+int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
+  uint64_t page_addr;
+  cdt_packet_write_req_parse(packet, &page_addr);
+  assert(page_addr - PGROUNDDOWN(page_addr) == 0);
+
+  int va_idx = SHARED_VA_TO_IDX(page_addr);
+  cdt_host_t * host = cdt_get_host();
+  pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+  if (!host->manager_pagetable[va_idx].in_use) {
+    debug_print("Got a write request for page %p with idx %d that is not in use in the manager page table\n", (void *)page_addr, va_idx);
+    pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+    return -1;
+  }
+  if (host->manager_pagetable[va_idx].writer >= 0) { // page currently has a writer
+    // Request invalidation and a copy of the page from the writer
+    debug_print("page idx %d has a writer\n", va_idx);
+
+  } else { // Currently in R/O
+    // Send invalidation requests to all readers and send the page back to the requester
+    cdt_packet_t packet;
+    cdt_packet_read_invalidate_req_create(&packet, page_addr);
+    for (int i = 0; i < CDT_MAX_MACHINES; i++) {
+      if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id) { 
+        if (cdt_connection_send(&host->peers[i].connection, &packet) != 0) {
+          debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
+          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+          return -1;
+        }
+        cdt_packet_t resp_packet;
+        if (mq_receive(sender->task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
+          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+          return -1;
+        }
+      }
+    }
+    // Update manager PTE
+
+    // Send page to requester
+
+  }
+  return 0;
 }
 
 int cdt_worker_thread_create(cdt_peer_t *sender, cdt_packet_t *packet) {
