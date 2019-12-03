@@ -48,6 +48,8 @@ typedef struct cdt_packet_t {
   char data[CDT_PACKET_DATA_SIZE];
 } cdt_packet_t;
 
+uint32_t cdt_packet_response_get_requester(cdt_packet_t *packet);
+
 int cdt_packet_self_identify_create(cdt_packet_t *packet, const char *address, const char *port);
 void cdt_packet_self_identify_parse(cdt_packet_t *packet, char **address, char **port);
 
@@ -74,11 +76,11 @@ void cdt_packet_thread_create_req_parse(cdt_packet_t *packet, uint64_t *procedur
 void cdt_packet_thread_create_resp_create(cdt_packet_t *packet, cdt_thread_t *thread);
 void cdt_packet_thread_create_resp_parse(cdt_packet_t *packet, cdt_thread_t *thread);
 
-void cdt_packet_thread_assign_req_create(cdt_packet_t *packet, uint64_t procedure, uint64_t arg, uint32_t thread_id);
-void cdt_packet_thread_assign_req_parse(cdt_packet_t *packet, uint64_t *procedure, uint64_t *arg, uint32_t *thread_id);
+void cdt_packet_thread_assign_req_create(cdt_packet_t *packet, uint32_t parent_id, uint64_t procedure, uint64_t arg, uint32_t thread_id);
+void cdt_packet_thread_assign_req_parse(cdt_packet_t *packet, uint32_t *parent_id, uint64_t *procedure, uint64_t *arg, uint32_t *thread_id);
 
-void cdt_packet_thread_assign_resp_create(cdt_packet_t *packet, uint32_t status);
-void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *status);
+void cdt_packet_thread_assign_resp_create(cdt_packet_t *packet, uint32_t requester_id, uint32_t status);
+void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *requester_id, uint32_t *status);
 
 void cdt_packet_read_req_create(cdt_packet_t *packet, uint64_t page_addr);
 void cdt_packet_read_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
