@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (argc < 2 || coordinate_argc == -1) {
-    fprintf(stderr, "Usage: %s --host IP:PORT [--connect IP:PORT] COMMAND [INITIAL_ARGS]...\n", argv[0]);
+    fprintf(stderr, "Usage: %s --host IP:PORT [--cores CORES --connect IP:PORT] COMMAND [COMMAND_ARGS]\n", argv[0]);
     return -1;
   }
 

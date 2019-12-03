@@ -79,7 +79,7 @@ int cdt_init_get_args(char ***_argv) {
 
 int cdt_main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s --host IP:PORT [--connect IP:PORT] COMMAND [INITIAL_ARGS]...\n", argv[0]);
+    fprintf(stderr, "Usage: %s --host IP:PORT [--cores CORES --connect IP:PORT] COMMAND [COMMAND_ARGS]\n", argv[0]);
     return -1;
   }
 
@@ -99,8 +99,21 @@ int cdt_main(int argc, char **argv) {
     }
   }
 
+  int cores_index = 0;
+  for (int i = 1; i < argc - 1; i++) {
+    if (strcmp(argv[i], "--cores") == 0) {
+      cores_index = i + 1;
+      break;
+    }
+  }
+
   if (!host_index) {
     fprintf(stderr, "Missing --host option\n");
+    return -1;
+  }
+
+  if (cores_index == connection_index) {
+    fprintf(stderr, "Must specify one of --cores or --connection options\n");
     return -1;
   }
 
@@ -128,6 +141,15 @@ int cdt_main(int argc, char **argv) {
     *lastColon = 0;
   }
 
+  int cores = 0;
+  if (cores_index) {
+    cores = atoi(argv[cores_index]);
+    if (cores < 1 || cores > CDT_MAX_MACHINES) {
+      fprintf(stderr, "Invalid value for cores: %s\n", argv[cores_index]);
+      return -1;
+    }
+  }
+
   cdt_server_t server;
   if (cdt_server_create(&server, host_address, host_port) == -1) {
     fprintf(stderr, "Cannot create server\n");
@@ -140,7 +162,8 @@ int cdt_main(int argc, char **argv) {
 
   printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
   
-  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, /*~1*/2);
+  uint32_t core_set = (1 << cores) - 2; // create a set where each bit from 1 to cores is 1, and the 0th bit is 0
+  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, core_set);
 
   if (connection_index) {
     cdt_connection_t *manager_connection = &host->peers[0].connection;
