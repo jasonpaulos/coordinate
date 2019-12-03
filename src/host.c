@@ -138,7 +138,7 @@ void* cdt_host_thread(void *arg) {
     peer->connection = connection;
     cdt_peer_start(peer);
 
-    cdt_host.peers_to_be_connected &= ~peer->id;
+    cdt_host.peers_to_be_connected &= ~(1 << peer->id);
     cdt_host.num_peers++;
   }
 

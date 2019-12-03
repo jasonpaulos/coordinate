@@ -10,8 +10,6 @@
 #include "host.h"
 #include "init.h"
 
-mqd_t qd_manager_peer_thread;
-
 int cdt_init_get_args(char ***_argv) {
   int header[3];
 
@@ -142,7 +140,7 @@ int cdt_main(int argc, char **argv) {
 
   printf("Listening at %s:%s\n", host_address == NULL ? "*" : host_address, host_port);
   
-  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, ~1);
+  cdt_host_t *host = cdt_host_init(connection_index == 0, &server, /*~1*/2);
 
   if (connection_index) {
     cdt_connection_t *manager_connection = &host->peers[0].connection;
@@ -180,12 +178,14 @@ int cdt_main(int argc, char **argv) {
     }
 
     host->peers_to_be_connected &= ((1 << host->self_id) - 1); // initialize to 1s between 0 (exclusive) and host.self_id (exclusive)
-    
+    host->peers[host->self_id].id = host->self_id;
+
     cdt_peer_start(&host->peers[0]);
-    cdt_peer_setup_task_queue(&host->peers[host->self_id]);
 
     printf("Connection successful\n");
   }
+
+  cdt_peer_setup_task_queue(&host->peers[host->self_id]);
 
   if (cdt_host_start() != 0) {
     fprintf(stderr, "Cannot start host thread\n");
@@ -196,17 +196,28 @@ int cdt_main(int argc, char **argv) {
 
   printf("Peers done connecting\n");
 
-  for (int i = 0; i < host->num_peers; i++) {
-    cdt_peer_t *peer = &host->peers[i];
-    if (peer->id == host->self_id) continue;
+  if (!host->manager) {
+    for (int i = 0; i < host->num_peers; i++) {
+      cdt_peer_t *peer = &host->peers[i];
+      if (peer->id == host->self_id) continue;
 
-    cdt_peer_join(peer);
-    cdt_connection_close(&peer->connection);
+      cdt_peer_join(peer);
+      cdt_connection_close(&peer->connection);
+    }
+
+    cdt_server_close(&server);
+    exit(0);
   }
 
-  cdt_server_close(&server);
-
   return 0;
+}
+
+void cdt_cleanup() {
+  cdt_host_t *host = cdt_get_host();
+  if (host) {
+    cdt_server_close(host->server);
+    // TODO: cleanup everything else, including message queues
+  }
 }
 
 void cdt_init() {
@@ -224,11 +235,11 @@ void cdt_init() {
 
   int status = cdt_main(argc, argv);
 
+  atexit(cdt_cleanup);
+
   if (status != 0) {
     free(argv);
     exit(status);
   }
-
-  // exit if status == 0 ?
 #endif
 }

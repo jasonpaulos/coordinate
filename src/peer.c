@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <errno.h>
 #include "util.h"
 #include "packet.h"
 #include "worker.h"
@@ -103,11 +104,15 @@ int cdt_peer_setup_task_queue(cdt_peer_t *peer) {
     .mq_msgsize = sizeof(cdt_packet_t),
   };
 
+  mq_unlink(cdt_task_queue_names[peer->id]); // close any lingering message queues
   peer->task_queue = mq_open(cdt_task_queue_names[peer->id], O_RDWR | O_CREAT, 0660, &task_queue_attr);
   if (peer->task_queue == -1) {
     debug_print("Failed to create task queue %s for peer %d\n", cdt_task_queue_names[peer->id], peer->id);
     return -1;
   }
+
+  if (peer->id == cdt_get_host()->self_id) // user thread will use this queue not a worker thread
+    return 0;
 
   if (pthread_create(&peer->worker_thread, NULL, cdt_worker_thread_start, (void*)peer) != 0) {
     debug_print("Failed to create worker thread for peer %d\n", peer->id);
@@ -162,11 +167,18 @@ void* cdt_peer_thread(void *arg) {
         debug_print("Failed to send allocation response message to main thread\n");
         return NULL;
       }
-    } else if (packet.type % 2 == 1) {
-      // TODO: handle response packet
-    } else {
+    } else if (packet.type == CDT_PACKET_THREAD_CREATE_RESP && peer->id == 0) { // only the manager (peer 0) can respond to thread create reqs
       if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
-        debug_print("Failed to send request packet to worker thread\n");
+        debug_print("Failed to send thread create response message to worker thread: %s\n", strerror(errno));
+      }
+    } else if (packet.type % 2 == 1) {
+      uint32_t requester_id = cdt_packet_response_get_requester(&packet);
+      if (mq_send(host->peers[requester_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
+        debug_print("Failed to send response packet to worker thread %d: %s\n", requester_id, strerror(errno));
+      }
+    } else {
+      if (mq_send(host->peers[peer->id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
+        debug_print("Failed to send request packet to worker thread: %s\n", strerror(errno));
       }
     }
   }
