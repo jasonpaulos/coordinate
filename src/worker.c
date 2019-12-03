@@ -2,6 +2,7 @@
 #include "packet.h"
 #include "worker.h"
 #include <assert.h>
+#include <stdlib.h>
 
 void* cdt_worker_thread_start(void *arg) {
   cdt_peer_t *peer = (cdt_peer_t*)arg;
@@ -53,6 +54,26 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   if (host->manager_pagetable[va_idx].writer >= 0) { // page currently has a writer
     // Request invalidation and a copy of the page from the writer
     debug_print("page idx %d has a writer\n", va_idx);
+    if (host->manager_pagetable[va_idx].writer == host->self_id) { // mngr is owner, update PTE and send page
+      debug_print("Manager is writer for write request by %d\n", sender->id);
+      host->manager_pagetable[va_idx].writer = sender->id;
+      cdt_packet_t write_resp_packet;
+      cdt_packet_write_resp_create(&write_resp_packet, host->manager_pagetable[va_idx].page);
+      
+      if (cdt_connection_send(&sender->connection, &write_resp_packet) != 0) {
+        debug_print("Failed to send write response packet to peer %d\n", sender->id);
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+
+      free(host->manager_pagetable[va_idx].page);
+      host->manager_pagetable[va_idx].page = NULL;
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return 0;
+    } else {
+      // Request invalidation and page from writer
+
+    }
 
   } else { // Currently in R/O
     // Send invalidation requests to all readers and send the page back to the requester

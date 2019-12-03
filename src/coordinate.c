@@ -26,7 +26,7 @@ void* cdt_malloc(size_t size) {
     // If we've gotten to this point, assume we're holding fresh_pte's lock
     fresh_pte->in_use = 1;
     fresh_pte->writer = 0;
-    fresh_pte->page = malloc(PAGESIZE);
+    fresh_pte->page = calloc(1, PAGESIZE);
     pthread_mutex_unlock(&fresh_pte->lock);
     return (void *)fresh_pte->shared_va;
     return NULL;
@@ -56,7 +56,7 @@ void* cdt_malloc(size_t size) {
   pthread_mutex_lock(&host->shared_pagetable[pte_idx].lock);
   host->shared_pagetable[pte_idx].in_use = 1;
   host->shared_pagetable[pte_idx].access = READ_WRITE_PAGE;
-  host->shared_pagetable[pte_idx].page = malloc(PAGESIZE);
+  host->shared_pagetable[pte_idx].page = calloc(1, PAGESIZE);
   printf("Filled in PTE index %d with new local pointer %p\n", pte_idx, host->shared_pagetable[pte_idx].page);
   pthread_mutex_unlock(&host->shared_pagetable[pte_idx].lock);
 
@@ -78,8 +78,8 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
   if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
     debug_print("write case\n");
     cdt_host_t * host = cdt_get_host();
+    int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
     if (host->manager == 0) {
-      int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
       pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
       if (host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE) {
         // Our machine has R/W access to the page, so go ahead and write to the page
@@ -98,17 +98,31 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
         }
         debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)PGROUNDDOWN(dest), va_idx);
 
-        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
+        cdt_packet_t resp_packet;
+        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
           debug_print("Failed to receive a message from manager receiver-thread\n");
           return NULL;
         }
 
         void * page;
-        cdt_packet_write_resp_parse(&packet, &page);
-        debug_print("Received write response packet from manager\n");
+        cdt_packet_write_resp_parse(&resp_packet, &page);
+        debug_print("Parsed write response packet from manager\n");
+        // Update machine PTE access and page
+        
+        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+        return dest;
       }
-    } else {
+    } else { // Manager is attempting to write
       debug_print("manager write case\n");
+      pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+      if (host->manager_pagetable[va_idx].in_use && host->manager_pagetable[va_idx].writer == host->self_id) {
+        // Our machine has R/W access to the page, so go ahead and write to the page
+        void * local_copy = host->manager_pagetable[va_idx].page;
+        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+        memmove(((void *)(uint64_t)local_copy + offset), src, n);
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return dest;
+      }
     }
   }
   // Read shared mem: dest is local and src is shared
