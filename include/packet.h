@@ -18,22 +18,24 @@ enum cdt_packet_type {
   CDT_PACKET_ALLOC_REQ             = 10,
   CDT_PACKET_ALLOC_RESP            = 12,
   
-  CDT_PACKET_THREAD_CREATE_REQ     = 14,
-  CDT_PACKET_THREAD_CREATE_RESP    = 15,
-  CDT_PACKET_THREAD_ASSIGN_REQ     = 16,
-  CDT_PACKET_THREAD_ASSIGN_RESP    = 17,
+  CDT_PACKET_THREAD_CREATE_REQ     = 20,
+  CDT_PACKET_THREAD_CREATE_RESP    = 21,
+  CDT_PACKET_THREAD_ASSIGN_REQ     = 22,
+  CDT_PACKET_THREAD_ASSIGN_RESP    = 23,
+  CDT_PACKET_THREAD_JOIN_REQ       = 24,
+  CDT_PACKET_THREAD_JOIN_RESP      = 25,
 
-  CDT_PACKET_READ_REQ              = 18,
-  CDT_PACKET_READ_RESP             = 19,
-  CDT_PACKET_READ_INVALIDATE_REQ   = 20,
-  CDT_PACKET_READ_INVALIDATE_RESP  = 21,
+  CDT_PACKET_READ_REQ              = 30,
+  CDT_PACKET_READ_RESP             = 31,
+  CDT_PACKET_READ_INVALIDATE_REQ   = 32,
+  CDT_PACKET_READ_INVALIDATE_RESP  = 33,
 
-  CDT_PACKET_WRITE_REQ             = 22,
-  CDT_PACKET_WRITE_RESP            = 23,
-  CDT_PACKET_WRITE_DEMOTE_REQ      = 24,
-  CDT_PACKET_WRITE_DEMOTE_RESP     = 25,
-  CDT_PACKET_WRITE_INVALIDATE_REQ  = 26,
-  CDT_PACKET_WRITE_INVALIDATE_RESP = 27,
+  CDT_PACKET_WRITE_REQ             = 34,
+  CDT_PACKET_WRITE_RESP            = 35,
+  CDT_PACKET_WRITE_DEMOTE_REQ      = 36,
+  CDT_PACKET_WRITE_DEMOTE_RESP     = 37,
+  CDT_PACKET_WRITE_INVALIDATE_REQ  = 38,
+  CDT_PACKET_WRITE_INVALIDATE_RESP = 39,
 };
 
 /**
@@ -81,6 +83,12 @@ void cdt_packet_thread_assign_req_parse(cdt_packet_t *packet, uint32_t *parent_i
 
 void cdt_packet_thread_assign_resp_create(cdt_packet_t *packet, uint32_t requester_id, uint32_t status);
 void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *requester_id, uint32_t *status);
+
+void cdt_packet_thread_join_req_create(cdt_packet_t *packet, cdt_thread_t *thread);
+void cdt_packet_thread_join_req_parse(cdt_packet_t *packet, cdt_thread_t *thread);
+
+void cdt_packet_thread_join_resp_create(cdt_packet_t *packet, uint32_t status, uint64_t return_value);
+void cdt_packet_thread_join_resp_parse(cdt_packet_t *packet, uint32_t *status, uint64_t *return_value);
 
 void cdt_packet_read_req_create(cdt_packet_t *packet, uint64_t page_addr);
 void cdt_packet_read_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
