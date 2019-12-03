@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <assert.h>
 #include <string.h>
 #include "util.h"
 #include "packet.h"
+#include "worker.h"
 #include "host.h"
 #include "worker.h"
 
@@ -48,6 +50,13 @@ int cdt_peer_setup_task_queue(cdt_peer_t *peer) {
   peer->task_queue = mq_open(cdt_task_queue_names[peer->id], O_RDWR | O_CREAT, 0660, &task_queue_attr);
   if (peer->task_queue == -1) {
     debug_print("Failed to create task queue %s for peer %d\n", cdt_task_queue_names[peer->id], peer->id);
+    return -1;
+  }
+
+  if (pthread_create(&peer->worker_thread, NULL, cdt_worker_thread_start, (void*)peer) != 0) {
+    debug_print("Failed to create worker thread for peer %d\n", peer->id);
+    mq_close(peer->task_queue);
+    mq_unlink(cdt_task_queue_names[peer->id]);
     return -1;
   }
 
@@ -99,9 +108,11 @@ void* cdt_peer_thread(void *arg) {
       }
     } else if (packet.type % 2 == 1) {
       // TODO: handle response packet
+    } else {
+      if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
+        debug_print("Failed to send request packet to worker thread\n");
+      }
     }
-
-    // TODO: handle other packets
   }
   
   return NULL;
