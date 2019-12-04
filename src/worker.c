@@ -107,6 +107,39 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       return 0;
     } else {
       // Request invalidation and page from writer
+      debug_print("Creating and sending invalidation pkt for page %p w index %d with owner %d\n", (void *)PGROUNDDOWN(page_addr), va_idx, host->manager_pagetable[va_idx].writer);
+      cdt_packet_t invalidation_pkt;
+      cdt_packet_write_invalidate_req_create(&invalidation_pkt, PGROUNDDOWN(page_addr), sender->id);
+      if (cdt_connection_send(&host->peers[host->manager_pagetable[va_idx].writer].connection, &invalidation_pkt) != 0) {
+        debug_print("Failed to send write-invalidate request packet\n");
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+      cdt_packet_t resp_packet;
+      if (mq_receive(sender->task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
+        debug_print("Failed to receive a write-invalidate response message from manager receiver-thread\n");
+        return -1;
+      }
+      void * page;
+      uint32_t requester_id;
+      cdt_packet_write_invalidate_resp_parse(&resp_packet, &page, &requester_id);
+      debug_print("Parsed write invalidate resp packet\n");
+      assert(requester_id == sender->id);
+      // Update mngr PTE access and page
+      host->manager_pagetable[va_idx].writer = sender->id;
+      host->shared_pagetable[va_idx].in_use = 1;
+      host->shared_pagetable[va_idx].page = NULL; // technically should already be null
+
+      cdt_packet_t write_resp;
+      cdt_packet_write_resp_create(&write_resp, page);
+      if (cdt_connection_send(&sender->connection, &write_resp) != 0) {
+        debug_print("Failed to send write response packet\n");
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+      
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return 0;
 
     }
 
