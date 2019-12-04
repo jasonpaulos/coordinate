@@ -123,6 +123,10 @@ void* cdt_peer_thread(void *arg) {
       if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
         debug_print("Failed to send read response message to worker thread: %s\n", strerror(errno));
       }
+    } else if (packet.type == CDT_PACKET_THREAD_JOIN_RESP) {
+      if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
+        debug_print("Failed to send thread join response packet to worker thread: %s\n", strerror(errno));
+      }
     } else if (packet.type % 2 == 1) {
       uint32_t requester_id = cdt_packet_response_get_requester(&packet);
       if (mq_send(host->peers[requester_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
