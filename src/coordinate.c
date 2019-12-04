@@ -25,7 +25,7 @@ void* cdt_malloc(size_t size) {
     // If we've gotten to this point, assume we're holding fresh_pte's lock
     fresh_pte->in_use = 1;
     fresh_pte->writer = 0;
-    fresh_pte->page = calloc(1, PAGESIZE);
+    fresh_pte->page = malloc(PAGESIZE);
     pthread_mutex_unlock(&fresh_pte->lock);
     return (void *)fresh_pte->shared_va;
     return NULL;
@@ -55,7 +55,7 @@ void* cdt_malloc(size_t size) {
   pthread_mutex_lock(&host->shared_pagetable[pte_idx].lock);
   host->shared_pagetable[pte_idx].in_use = 1;
   host->shared_pagetable[pte_idx].access = READ_WRITE_PAGE;
-  host->shared_pagetable[pte_idx].page = calloc(1, PAGESIZE);
+  host->shared_pagetable[pte_idx].page = malloc(PAGESIZE);
   printf("Filled in PTE index %d with new local pointer %p\n", pte_idx, host->shared_pagetable[pte_idx].page);
   pthread_mutex_unlock(&host->shared_pagetable[pte_idx].lock);
 
@@ -80,7 +80,7 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
   if (host->manager == 0) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_host_pte_t *pte = &host->shared_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = pte->shared_va;
       uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
       size_t length = i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE;
       const void *src_addr = src + (i - start_va_idx) * PAGESIZE + offset;
@@ -108,7 +108,7 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
         // Update machine PTE access and page
         pte->access = READ_WRITE_PAGE;
         pte->in_use = 1;
-        void *local_copy = pte->page = calloc(1, PAGESIZE);
+        void *local_copy = pte->page = malloc(PAGESIZE);
 
         memmove(local_copy, page, PAGESIZE);
 
@@ -153,7 +153,7 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
           // Update mngr PTE access and page
           pte->writer = host->self_id;
           pte->in_use = 1;
-          pte->page = calloc(1, PAGESIZE);
+          pte->page = malloc(PAGESIZE);
 
           void *local_copy = pte->page;
           memmove(local_copy, page, PAGESIZE);
@@ -214,7 +214,7 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
   if (host->manager == 0) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_host_pte_t *pte = &host->shared_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = pte->shared_va;
       uint64_t offset = i == start_va_idx ? (uint64_t)src - PGROUNDDOWN(src) : 0;
       size_t length = i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE;
       void *dest_addr = dest + (i - start_va_idx) * PAGESIZE + offset;
@@ -242,7 +242,7 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
         // Update machine PTE access and page
         pte->access = READ_ONLY_PAGE;
         pte->in_use = 1;
-        void *local_copy = pte->page = calloc(1, PAGESIZE);
+        void *local_copy = pte->page = malloc(PAGESIZE);
 
         memmove(local_copy, page, PAGESIZE);
 
@@ -285,7 +285,7 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
           pte->read_set[host->self_id] = 1;
           pte->read_set[pte->writer] = 1;
 
-          void *local_page = pte->page = calloc(1, PAGESIZE);
+          void *local_page = pte->page = malloc(PAGESIZE);
           memmove(local_page, page, PAGESIZE);
 
           local_page += offset;
