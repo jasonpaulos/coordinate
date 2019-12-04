@@ -510,38 +510,6 @@ int cdt_worker_thread_join(cdt_peer_t *sender, cdt_packet_t *packet) {
   return 0;
 }
 
-/* Finds an unused page table entry and puts the pointer to the PTE in *fresh_pte. 
-   IMPORTANT: it returns holding the lock for the unused PTE if it succeeds in finding a fresh PTE.
-   Returns 0 if successful in finding an unused PTE, -1 otherwise. */
-int cdt_find_unused_pte_OLD(cdt_manager_pte_t ** fresh_pte, int peer_id) {
-  cdt_host_t *host = cdt_get_host();
-
-  assert(host->manager == 1);
-  int i;
-  for (i = 0; i < CDT_MAX_SHARED_PAGES; i++) {
-    cdt_manager_pte_t * current_pte = &host->manager_pagetable[i];
-    if (current_pte->in_use == 0) {
-      pthread_mutex_lock(&current_pte->lock);
-      if (current_pte->in_use == 0) {
-        *fresh_pte = &host->manager_pagetable[i];
-        printf("fresh pte shared VA %p\n", (void *)host->manager_pagetable[i].shared_va);
-        break;
-      }
-      // We raced on this PTE and lost, so unlock it and keep looking
-      pthread_mutex_unlock(&current_pte->lock);
-      continue;
-    }
-    if (i == CDT_MAX_SHARED_PAGES - 1 && current_pte->in_use != 0) {
-      // Note: we COULD go back and keep looping over manager PTEs in hopes that another thread sets a PTE.in_use = 0
-      // if we support freeing (which we don't yet)
-      debug_print("Failed to find an unused shared page for allocation request from peer from %d\n", peer_id);
-      return -1;
-    }
-  }
-  printf("Found empty PTE with index %d and VA %p\n", i, (void *)(*fresh_pte)->shared_va);
-  return 0;
-}
-
 int get_remaining_ptes(int first_unallocated_pte_idx, int peer_id, int num_ptes) {
   cdt_host_t * host = cdt_get_host();
   if (num_ptes + first_unallocated_pte_idx > CDT_MAX_SHARED_PAGES)

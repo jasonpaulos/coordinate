@@ -16,26 +16,25 @@ void* cdt_malloc(size_t size) {
     return NULL;
   }
 
-  if (host->manager) {
-    printf("Manager trying to malloc\n");
-    cdt_manager_pte_t * fresh_pte;
-    if (cdt_find_unused_pte_OLD(&fresh_pte, host->self_id) < 0) {
-      return NULL;
-    }
-    // If we've gotten to this point, assume we're holding fresh_pte's lock
-    fresh_pte->in_use = 1;
-    fresh_pte->writer = 0;
-    fresh_pte->page = calloc(1, PAGESIZE);
-    pthread_mutex_unlock(&fresh_pte->lock);
-    return (void *)fresh_pte->shared_va;
-    return NULL;
-
-  }
-  // Not the manager, so send msg to manager requesting allocation
-  cdt_packet_t packet;
   uint32_t num_pages_req = (uint32_t)(size / PAGESIZE);
   if (size % PAGESIZE  != 0) 
     num_pages_req++;
+
+  if (host->manager) {
+    printf("Manager trying to malloc\n");
+    int start_pte_idx;
+    if (cdt_find_unused_pte(&start_pte_idx, host->self_id, num_pages_req) < 0) {
+      return NULL;
+    }
+    // If we've gotten to this point, assume we're holding lock of all PTEs from start_pte_idx to start_pte_idx + num_pages_req
+    for (int i = start_pte_idx; i < start_pte_idx + num_pages_req; i++) {
+      host->manager_pagetable[i].page = calloc(1, PAGESIZE);
+      pthread_mutex_unlock(&host->manager_pagetable[i].lock);
+    }
+    return (void *)host->manager_pagetable[start_pte_idx].shared_va;
+  }
+  // Not the manager, so send msg to manager requesting allocation
+  cdt_packet_t packet;
   cdt_packet_alloc_req_create(&packet, host->self_id, num_pages_req);
   
   if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {

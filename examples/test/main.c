@@ -52,12 +52,13 @@ void* test2_helper(void* arg) {
   char * src = "a";
   printf("Trying to memcpy dest %p with src %p\n", dest, src);
   cdt_memcpy(dest, src, 1);
+  sleep(500);
   return NULL;
 }
 
 int test2_malloc_on_mngr_write_on_peer(void) {
   printf("Hello from the main thread\n");
-  void * page = cdt_malloc(1);
+  void * page = cdt_malloc(4 * 4096 + 3);
   char * src = "a";
   
   cdt_memcpy(page, (void *)src, 1);
@@ -198,6 +199,6 @@ int main(int argc, char *argv[]) {
   // cdt_thread_join(&thread, &return_value);
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
-  test0_malloc2_on_peer();
+  test2_malloc_on_mngr_write_on_peer();
   return 0;
 }
