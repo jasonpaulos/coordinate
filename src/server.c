@@ -31,6 +31,9 @@ int cdt_server_create(cdt_server_t *server, const char *address, const char *por
     if (sfd == -1)
       continue;
     
+    int enable = 1;
+    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+    
     if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
       break;
     
