@@ -226,6 +226,50 @@ void cdt_packet_thread_assign_resp_parse(cdt_packet_t *packet, uint32_t *request
   *status = ntohl(*status);
 }
 
+void cdt_packet_thread_join_req_create(cdt_packet_t *packet, cdt_thread_t *thread) {
+  packet->type = CDT_PACKET_THREAD_JOIN_REQ;
+  
+  uint32_t data[2] = {
+    htonl(thread->remote_peer_id),
+    htonl(thread->remote_thread_id)
+  };
+
+  packet->size = sizeof(data);
+
+  memmove(packet->data, data, sizeof(data));
+}
+
+void cdt_packet_thread_join_req_parse(cdt_packet_t *packet, cdt_thread_t *thread) {
+  assert(packet->type == CDT_PACKET_THREAD_JOIN_REQ);
+
+  uint32_t data[2];
+  memmove(data, packet->data, sizeof(data));
+
+  thread->valid = 1;
+  thread->remote_peer_id = ntohl(data[0]);
+  thread->remote_thread_id = ntohl(data[1]);
+}
+
+void cdt_packet_thread_join_resp_create(cdt_packet_t *packet, uint32_t status, uint64_t return_value) {
+  packet->type = CDT_PACKET_THREAD_JOIN_RESP;
+  packet->size = sizeof(status) + sizeof(return_value);
+
+  status = htonl(status);
+  return_value = htonll(return_value);
+  memmove(packet->data, &status, sizeof(status));
+  memmove(packet->data + sizeof(status), &return_value, sizeof(return_value));
+}
+
+void cdt_packet_thread_join_resp_parse(cdt_packet_t *packet, uint32_t *status, uint64_t *return_value) {
+  assert(packet->type == CDT_PACKET_THREAD_JOIN_RESP);
+
+  memmove(status, packet->data, sizeof(*status));
+  memmove(return_value, packet->data + sizeof(*status), sizeof(*return_value));
+
+  *status = ntohl(*status);
+  *return_value = ntohll(*return_value);
+}
+
 void cdt_packet_read_req_create(cdt_packet_t *packet, uint64_t page_addr) {
   packet->type = CDT_PACKET_READ_REQ;
   packet->size = sizeof(page_addr);

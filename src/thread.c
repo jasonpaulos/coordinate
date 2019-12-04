@@ -16,13 +16,18 @@ cdt_thread_t cdt_thread_self() {
     exit(-1);
   }
 
-  cdt_thread_t *self_thread = &host->peers[host->self_id].thread;
-  if (!self_thread->valid) {
+  pthread_mutex_lock(&host->thread_lock);
+
+  cdt_thread_t self_thread = host->peers[host->self_id].thread;
+
+  pthread_mutex_unlock(&host->thread_lock);
+
+  if (!self_thread.valid) {
     debug_print("Host thread not yet started");
     exit(-1);
   }
 
-  return *self_thread;
+  return self_thread;
 #endif
 }
 
@@ -111,8 +116,49 @@ int cdt_thread_join_local(cdt_thread_t *thread, void **return_value) {
 }
 
 int cdt_thread_join_remote(cdt_thread_t *thread, void **return_value) {
-  // TODO
-  return -1;
+  cdt_host_t *host = cdt_get_host();
+  if (!host) {
+    debug_print("Host not yet started\n");
+    return -1;
+  }
+
+  cdt_thread_t self_thread = cdt_thread_self();
+
+  if (cdt_thread_equal(thread, &self_thread)) {
+    debug_print("Cannot join self thread\n");
+    return -1;
+  }
+
+  if (!thread->valid || thread->remote_peer_id >= host->num_peers) {
+    debug_print("Invalid thread\n");
+    return -1;
+  }
+
+  cdt_packet_t packet;
+  cdt_packet_thread_join_req_create(&packet, thread);
+
+  if (cdt_connection_send(&host->peers[thread->remote_peer_id].connection, &packet) != 0) {
+    debug_print("Failed to send thread join request\n");
+    return -1;
+  }
+
+  cdt_peer_t *self = &host->peers[host->self_id];
+  if (mq_receive(self->task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
+    debug_print("Failed to receive thread join response\n");
+    return -1;
+  }
+
+  uint32_t status;
+  uint64_t return_value_resp;
+  cdt_packet_thread_join_resp_parse(&packet, &status, &return_value_resp);
+
+  if (status != 0)
+    return -1;
+
+  if (return_value)
+    *return_value = (void*)return_value_resp;
+
+  return 0;
 }
 
 int cdt_thread_join(cdt_thread_t *thread, void **return_value) {

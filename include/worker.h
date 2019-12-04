@@ -34,4 +34,9 @@ cdt_thread_t* cdt_worker_do_thread_create(cdt_host_t *host, cdt_peer_t *sender, 
  */
 int cdt_worker_thread_assign(cdt_peer_t *sender, cdt_packet_t *packet);
 
+/**
+ * Handle CDT_PACKET_THREAD_JOIN_REQ
+ */
+int cdt_worker_thread_join(cdt_peer_t *sender, cdt_packet_t *packet);
+
 #endif
