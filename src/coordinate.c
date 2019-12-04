@@ -8,8 +8,6 @@
 #include "coordinate.h"
 #include "worker.h"
 
-extern mqd_t qd_manager_peer_thread;
-
 // Returns NULL on failure
 void* cdt_malloc(size_t size) {
   cdt_host_t *host = cdt_get_host();
@@ -74,11 +72,12 @@ int is_shared_va(void * addr) {
 }
 
 void* cdt_memcpy(void *dest, void *src, size_t n) {
+  cdt_host_t *host = cdt_get_host();
+
   // Write shared mem: src is local and dest is shared
   // TODO: handle the case where we read or write beyond page boundaries - currently assuming only R/W within page bounds
   if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
     debug_print("write case\n");
-    cdt_host_t * host = cdt_get_host();
     int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
     if (host->manager == 0) {
       pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
@@ -173,7 +172,49 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
   }
   // Read shared mem: dest is local and src is shared
   if (is_shared_va(src) == 1 &&  is_shared_va(dest) == 0) {
-    
+    debug_print("read case\n");
+    int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(src));
+    if (host->manager == 0) {
+      pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
+      if (host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access != INVALID_PAGE) {
+        // Our machine has R/W access to the page, so go ahead and write to the page
+        void * local_copy = host->shared_pagetable[va_idx].page;
+        uint64_t offset = (uint64_t)src - PGROUNDDOWN(src);
+        memmove(dest, ((void *)(uint64_t)local_copy + offset), n);
+        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+        return dest;
+      } else {
+        // We don't have read access to the page, so request R/O access from the manager
+        cdt_packet_t packet;
+        cdt_packet_read_req_create(&packet, PGROUNDDOWN(src));
+        if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
+          debug_print("Failed to send write request packet\n");
+          return NULL;
+        }
+        debug_print("Sent read req packet from manager for page %p with idx %d\n", (void *)PGROUNDDOWN(src), va_idx);
+
+        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
+          debug_print("Failed to receive a message from manager receiver-thread\n");
+          return NULL;
+        }
+
+        void * page;
+        cdt_packet_read_resp_parse(&packet, &page);
+        debug_print("Parsed read response packet from manager\n");
+        // Update machine PTE access and page
+        host->shared_pagetable[va_idx].access = READ_ONLY_PAGE;
+        host->shared_pagetable[va_idx].in_use = 1;
+        host->shared_pagetable[va_idx].page = calloc(1, PAGESIZE);
+
+        void * local_copy = host->shared_pagetable[va_idx].page;
+        memmove(local_copy, page, PAGESIZE);
+        uint64_t offset = (uint64_t)src - PGROUNDDOWN(src);
+        memmove(dest, ((void *)(uint64_t)local_copy + offset), n);
+        
+        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+        return dest;
+      }
+    }
   }
 
   // TODO

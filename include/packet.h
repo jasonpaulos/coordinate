@@ -5,7 +5,7 @@
 
 typedef struct cdt_thread_t cdt_thread_t;
 
-#define CDT_PACKET_DATA_SIZE PAGESIZE + sizeof(uint32_t)
+#define CDT_PACKET_DATA_SIZE (PAGESIZE + sizeof(uint32_t))
 
 enum cdt_packet_type {
   CDT_PACKET_SELF_IDENTIFY         = 0,
@@ -99,11 +99,11 @@ void cdt_packet_write_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
 void cdt_packet_write_resp_create(cdt_packet_t *packet, void *page);
 void cdt_packet_write_resp_parse(cdt_packet_t *packet, void **page);
 
-void cdt_packet_write_demote_req_create(cdt_packet_t *packet, uint64_t page_addr);
-void cdt_packet_write_demote_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
+void cdt_packet_write_demote_req_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id);
+void cdt_packet_write_demote_req_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id);
 
-void cdt_packet_write_demote_resp_create(cdt_packet_t *packet, void *page);
-void cdt_packet_write_demote_resp_parse(cdt_packet_t *packet, void **page);
+void cdt_packet_write_demote_resp_create(cdt_packet_t *packet, void *page, uint32_t requester_id);
+void cdt_packet_write_demote_resp_parse(cdt_packet_t *packet, void **page, uint32_t *requester_id);
 
 void cdt_packet_write_invalidate_req_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id);
 void cdt_packet_write_invalidate_req_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id);

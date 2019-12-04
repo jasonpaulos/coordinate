@@ -32,6 +32,16 @@ int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
 int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
 
+/**
+ * Handle CDT_PACKET_WRITE_DEMOTE_RESP
+ */
+int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet);
+
+/**
+ * Handle CDT_PACKET_READ_REQ
+ */
+int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet);
+
 int cdt_allocate_shared_page(cdt_peer_t * peer);
 /**
  * The underlying implementation of creating a thread.

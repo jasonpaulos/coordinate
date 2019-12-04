@@ -3,6 +3,7 @@
 #include "worker.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 void* cdt_worker_thread_start(void *arg) {
   cdt_peer_t *peer = (cdt_peer_t*)arg;
@@ -17,8 +18,12 @@ void* cdt_worker_thread_start(void *arg) {
       break;
     case CDT_PACKET_THREAD_ASSIGN_REQ:
       res = cdt_worker_thread_assign(peer, &packet);
+      break;
     case CDT_PACKET_READ_REQ:
-      // Handle a read request from a peer machine here
+      res = cdt_worker_read_req(peer, &packet);
+      break;
+    case CDT_PACKET_WRITE_DEMOTE_REQ:
+      res = cdt_worker_write_demote(peer, &packet);
       break;
     case CDT_PACKET_WRITE_REQ:
       debug_print("Received a write request from peer %d\n", peer->id);
@@ -167,6 +172,126 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
 
   }
   return 0;
+}
+
+int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet) {
+  cdt_host_t *host = cdt_get_host();
+
+  assert(!host->manager);
+
+  uint64_t page_addr;
+  uint32_t requester_id;
+  cdt_packet_write_demote_req_parse(packet, &page_addr, &requester_id);
+  assert(page_addr - PGROUNDDOWN(page_addr) == 0);
+
+  int va_idx = SHARED_VA_TO_IDX(page_addr);
+  // TODO: verify va_idx is valid
+
+  pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
+
+  if (host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE) {
+    host->shared_pagetable[va_idx].access = READ_ONLY_PAGE;
+  }
+
+  cdt_packet_write_demote_resp_create(packet, host->shared_pagetable[va_idx].page, requester_id);
+
+  pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+
+  if (cdt_connection_send(&sender->connection, packet) != 0) {
+    debug_print("Failed to send write demote response to peer %d\n", sender->id);
+    return -1;
+  }
+
+  return 0;
+}
+
+int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet) {
+  uint64_t page_addr;
+  cdt_packet_read_req_parse(packet, &page_addr);
+  assert(page_addr - PGROUNDDOWN(page_addr) == 0);
+
+  int va_idx = SHARED_VA_TO_IDX(page_addr);
+  // TODO: verify va_idx is valid
+
+  cdt_host_t * host = cdt_get_host();
+  pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+  if (!host->manager_pagetable[va_idx].in_use) {
+    debug_print("Got a read request for page %p with idx %d that is not in use in the manager page table\n", (void *)page_addr, va_idx);
+    pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+    return -1;
+  }
+  if (host->manager_pagetable[va_idx].writer >= 0) { // page currently has a writer
+    // Request demotion and a copy of the page from the writer
+    uint32_t writer = host->manager_pagetable[va_idx].writer;
+    debug_print("page idx %d has writer %d\n", va_idx, writer);
+    if (writer == host->self_id) { // mngr is owner, update PTE and send page
+      debug_print("Manager is writer for read request by %d\n", sender->id);
+      host->manager_pagetable[va_idx].writer = -1;
+      host->manager_pagetable[va_idx].read_set[host->self_id] = 1;
+      host->manager_pagetable[va_idx].read_set[sender->id] = 1;
+      cdt_packet_read_resp_create(packet, host->manager_pagetable[va_idx].page);
+      
+      if (cdt_connection_send(&sender->connection, packet) != 0) {
+        debug_print("Failed to send read response packet to peer %d\n", sender->id);
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return 0;
+    } else {
+      // Request demotion and page from writer
+      cdt_packet_write_demote_req_create(packet, page_addr, sender->id);
+
+      if (cdt_connection_send(&host->peers[writer].connection, packet) != 0) {
+        debug_print("Failed to send write demote request packet to peer %d\n", writer);
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+
+      if (mq_receive(sender->task_queue, (char*)packet, sizeof(*packet), NULL) == -1) {
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+
+      void *page;
+      uint32_t requester_id;
+      cdt_packet_write_demote_resp_parse(packet, &page, &requester_id);
+
+      host->manager_pagetable[va_idx].writer = -1;
+      host->manager_pagetable[va_idx].read_set[host->self_id] = 1;
+      host->manager_pagetable[va_idx].read_set[writer] = 1;
+      host->manager_pagetable[va_idx].read_set[sender->id] = 1;
+
+      void *local_page = host->manager_pagetable[va_idx].page = calloc(1, PAGESIZE);
+      memmove(local_page, page, PAGESIZE);
+
+      cdt_packet_read_resp_create(packet, local_page);
+      
+      if (cdt_connection_send(&sender->connection, packet) != 0) {
+        debug_print("Failed to send read response packet to peer %d\n", sender->id);
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return 0;
+    }
+
+  } else { // Currently in R/O
+    // Send the page to the requester
+    cdt_packet_read_resp_create(packet, host->manager_pagetable[va_idx].page);
+    
+    if (cdt_connection_send(&sender->connection, packet) != 0) {
+      debug_print("Failed to send read response packet to peer %d\n", sender->id);
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return -1;
+    }
+
+    pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+    return 0;
+
+  }
 }
 
 int cdt_worker_thread_create(cdt_peer_t *sender, cdt_packet_t *packet) {
