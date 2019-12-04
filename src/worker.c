@@ -24,6 +24,11 @@ void* cdt_worker_thread_start(void *arg) {
       debug_print("Received a write request from peer %d\n", peer->id);
       res = cdt_worker_write_req(peer, &packet);
       break;
+    case CDT_PACKET_WRITE_INVALIDATE_REQ:
+      debug_print("Received a write-invalidate request from peer %d\n", peer->id);
+      res = cdt_worker_write_invalidate_req(peer, &packet);
+      break;
+
     // more cases...
     default:
       debug_print("Unexpected packet type: %d\n", packet.type);
@@ -36,6 +41,36 @@ void* cdt_worker_thread_start(void *arg) {
   }
 
   return NULL;
+}
+
+int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
+  uint64_t page_addr;
+  uint32_t requester_id;
+  cdt_packet_write_invalidate_req_parse(packet, &page_addr, &requester_id);
+
+  cdt_host_t * host = cdt_get_host();
+  int va_idx = SHARED_VA_TO_IDX(page_addr);
+  pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+
+  assert(page_addr - PGROUNDDOWN(page_addr) == 0);
+  assert(!host->manager); // The mngr should never receive invalidation requests
+  assert(host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE);
+
+  cdt_packet_t resp_pkt;
+  cdt_packet_write_invalidate_resp_create(&resp_pkt, host->shared_pagetable[va_idx].page, requester_id);
+
+
+  if (cdt_connection_send(&sender->connection, &resp_pkt) != 0) {
+    debug_print("Failed to send write invalidate response packet to peer %d\n", sender->id);
+    pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+    return -1;
+  }
+
+  host->shared_pagetable[va_idx].access = INVALID_PAGE;
+  free(host->shared_pagetable[va_idx].page);
+  host->shared_pagetable[va_idx].page = NULL;
+  pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
+  return 0;  
 }
 
 int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
@@ -75,7 +110,7 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
 
     }
 
-  } else { // Currently in R/O
+  } else { // Currently in R/O (not tested yet - need to get read working for this)
     // Send invalidation requests to all readers and send the page back to the requester
     cdt_packet_t packet;
     cdt_packet_read_invalidate_req_create(&packet, page_addr);

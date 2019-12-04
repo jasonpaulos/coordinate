@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "host.h"
 #include "packet.h"
 #include "coordinate.h"
@@ -93,7 +94,7 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
         cdt_packet_t packet;
         cdt_packet_write_req_create(&packet, PGROUNDDOWN(dest));
         if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
-          fprintf(stderr, "Failed to send allocation request packet\n");
+          debug_print("Failed to send write request packet\n");
           return NULL;
         }
         debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)PGROUNDDOWN(dest), va_idx);
@@ -121,15 +122,52 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
         return dest;
       }
     } else { // Manager is attempting to write
-      debug_print("manager write case\n");
       pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
-      if (host->manager_pagetable[va_idx].in_use && host->manager_pagetable[va_idx].writer == host->self_id) {
-        // Our machine has R/W access to the page, so go ahead and write to the page
-        void * local_copy = host->manager_pagetable[va_idx].page;
-        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-        memmove(((void *)(uint64_t)local_copy + offset), src, n);
-        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-        return dest;
+      if (host->manager_pagetable[va_idx].in_use && host->manager_pagetable[va_idx].writer >= 0) { // page is in Write mode
+        if (host->manager_pagetable[va_idx].writer == host->self_id) { // Manager has R/W access 
+          void * local_copy = host->manager_pagetable[va_idx].page;
+          uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+          memmove(((void *)(uint64_t)local_copy + offset), src, n);
+          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+          return dest;
+        } else {
+          // Send request to writer for invalidation and page
+          debug_print("Creating and sending invalidation pkt for page %p w index %d\n", (void *)PGROUNDDOWN(dest), va_idx);
+          cdt_packet_t invalidation_pkt;
+          cdt_packet_write_invalidate_req_create(&invalidation_pkt, PGROUNDDOWN(dest), host->self_id);
+          if (cdt_connection_send(&host->peers[host->manager_pagetable[va_idx].writer].connection, &invalidation_pkt) != 0) {
+            debug_print("Failed to send write-invalidate request packet\n");
+            pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+            return NULL;
+          }
+          cdt_packet_t resp_packet;
+          if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
+            debug_print("Failed to receive a write-invalidate response message from manager receiver-thread\n");
+            return NULL;
+          }
+          void * page;
+          uint32_t requester_id;
+          cdt_packet_write_invalidate_resp_parse(&resp_packet, &page, &requester_id);
+          debug_print("Parsed write invalidate resp packet\n");
+          assert(requester_id == host->self_id);
+          // Update mngr PTE access and page
+          host->manager_pagetable[va_idx].writer = host->self_id;
+          host->shared_pagetable[va_idx].in_use = 1;
+          host->shared_pagetable[va_idx].page = calloc(1, PAGESIZE);
+
+          void * local_copy = host->shared_pagetable[va_idx].page;
+          memmove(local_copy, page, PAGESIZE);
+          debug_print("old page: %s\n", (char *)local_copy);
+          uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+          memmove(((void *)(uint64_t)local_copy + offset), src, n);
+          debug_print("new page: %s\n", (char *)local_copy);
+          
+          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+          return dest;
+        }
+
+      } else { // page is in R/O mode
+
       }
     }
   }
