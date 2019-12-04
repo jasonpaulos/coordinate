@@ -66,143 +66,166 @@ void cdt_free(void *ptr) {
   // TODO
 }
 
-int is_shared_va(void * addr) {
+int is_shared_va(const void * addr) {
   // TODO: ensure the user's malloc never gives them an address in the shared region?
   return (uint64_t)addr >= CDT_SHARED_VA_START && (uint64_t)addr < CDT_SHARED_VA_END;
 }
 
-void* cdt_memcpy(void *dest, void *src, size_t n) {
+int cdt_copyout(void *dest, const void *src, size_t n) {
   cdt_host_t *host = cdt_get_host();
 
-  // Write shared mem: src is local and dest is shared
-  // TODO: handle the case where we read or write beyond page boundaries - currently assuming only R/W within page bounds
-  if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
-    debug_print("write case\n");
-    int va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
-    if (host->manager == 0) {
-      pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
-      if (host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE) {
+  int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
+  int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest + n));
+
+  if (host->manager == 0) {
+    for (int i = start_va_idx; i <= end_va_idx; i++) {
+      cdt_host_pte_t *pte = &host->shared_pagetable[i];
+      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
+
+      if (pte->in_use && pte->access == READ_WRITE_PAGE) {
         // Our machine has R/W access to the page, so go ahead and write to the page
-        void * local_copy = host->shared_pagetable[va_idx].page;
-        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-        memmove(((void *)(uint64_t)local_copy + offset), src, n);
-        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
-        return dest;
+        void * local_copy = pte->page + offset;
+
+        memmove(local_copy, src, n);
       } else {
         // We don't have R/W access to the page, so request write access from the manager
         cdt_packet_t packet;
-        cdt_packet_write_req_create(&packet, PGROUNDDOWN(dest));
-        if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
-          debug_print("Failed to send write request packet\n");
-          return NULL;
-        }
-        debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)PGROUNDDOWN(dest), va_idx);
+        cdt_packet_write_req_create(&packet, page_addr);
+        if (cdt_connection_send(&host->peers[0].connection, &packet) != 0)
+          return -1;
 
-        cdt_packet_t resp_packet;
-        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
-          debug_print("Failed to receive a message from manager receiver-thread\n");
-          return NULL;
-        }
+        debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)page_addr, i);
+
+        if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1)
+          return -1;
 
         void * page;
-        cdt_packet_write_resp_parse(&resp_packet, &page);
-        debug_print("Parsed write response packet from manager\n");
+        cdt_packet_write_resp_parse(&packet, &page);
+        debug_print("Parsed write response packet for page %p from manager\n", (void*)page_addr);
         // Update machine PTE access and page
-        host->shared_pagetable[va_idx].access = READ_WRITE_PAGE;
-        host->shared_pagetable[va_idx].in_use = 1;
-        host->shared_pagetable[va_idx].page = calloc(1, PAGESIZE);
+        pte->access = READ_WRITE_PAGE;
+        pte->in_use = 1;
+        void *local_copy = pte->page = calloc(1, PAGESIZE);
 
-        void * local_copy = host->shared_pagetable[va_idx].page;
         memmove(local_copy, page, PAGESIZE);
-        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-        memmove(((void *)(uint64_t)local_copy + offset), src, n);
-        
-        pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
-        return dest;
+
+        local_copy += offset;
+
+        memmove(local_copy, src, n);
       }
-    } else { // Manager is attempting to write
-      pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
-      if (host->manager_pagetable[va_idx].in_use && host->manager_pagetable[va_idx].writer >= 0) { // page is in Write mode
-        if (host->manager_pagetable[va_idx].writer == host->self_id) { // Manager has R/W access 
-          void * local_copy = host->manager_pagetable[va_idx].page;
-          uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-          memmove(((void *)(uint64_t)local_copy + offset), src, n);
-          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-          return dest;
+    }
+  } else {
+    // Manager is attempting to write
+    for (int i = start_va_idx; i <= end_va_idx; i++) {
+      cdt_manager_pte_t *pte = &host->manager_pagetable[i];
+      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
+
+      if (pte->in_use && pte->writer >= 0) {
+        // page is in write mode
+        if (pte->writer == host->self_id) {
+          // manager has R/W access
+          void *local_copy = pte->page + offset;
+          memmove(local_copy, src, n);
         } else {
           // Send request to writer for invalidation and page
-          debug_print("Creating and sending invalidation pkt for page %p w index %d\n", (void *)PGROUNDDOWN(dest), va_idx);
-          cdt_packet_t invalidation_pkt;
-          cdt_packet_write_invalidate_req_create(&invalidation_pkt, PGROUNDDOWN(dest), host->self_id);
-          if (cdt_connection_send(&host->peers[host->manager_pagetable[va_idx].writer].connection, &invalidation_pkt) != 0) {
-            debug_print("Failed to send write-invalidate request packet\n");
-            pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-            return NULL;
-          }
-          cdt_packet_t resp_packet;
-          if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
-            debug_print("Failed to receive a write-invalidate response message from manager receiver-thread\n");
-            return NULL;
-          }
-          void * page;
-          uint32_t requester_id;
-          cdt_packet_write_invalidate_resp_parse(&resp_packet, &page, &requester_id);
-          debug_print("Parsed write invalidate resp packet\n");
-          assert(requester_id == host->self_id);
-          // Update mngr PTE access and page
-          host->manager_pagetable[va_idx].writer = host->self_id;
-          host->shared_pagetable[va_idx].in_use = 1;
-          host->shared_pagetable[va_idx].page = calloc(1, PAGESIZE);
+          debug_print("Creating and sending invalidation pkt for page %p w index %d\n", (void *)page_addr, i);
 
-          void * local_copy = host->shared_pagetable[va_idx].page;
-          memmove(local_copy, page, PAGESIZE);
-          debug_print("old page: %s\n", (char *)local_copy);
-          uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-          memmove(((void *)(uint64_t)local_copy + offset), src, n);
-          debug_print("new page: %s\n", (char *)local_copy);
+          cdt_packet_t packet;
+          cdt_packet_write_invalidate_req_create(&packet, page_addr, host->self_id);
+          if (cdt_connection_send(&host->peers[pte->writer].connection, &packet) != 0)
+            return -1;
           
-          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-          return dest;
+          if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1)
+            return -1;
+          
+          void *page;
+          uint32_t requester_id;
+          cdt_packet_write_invalidate_resp_parse(&packet, &page, &requester_id);
+          debug_print("Parsed write invalidate resp packet for page %p\n", (void*)page_addr);
+          assert(requester_id == host->self_id);
+
+          // Update mngr PTE access and page
+          pte->writer = host->self_id;
+          pte->in_use = 1;
+          pte->page = calloc(1, PAGESIZE);
+
+          void *local_copy = pte->page;
+          memmove(local_copy, page, PAGESIZE);
+
+          local_copy += offset;
+
+          memmove(local_copy, src, n);
         }
       } else { // page is in R/O mode
         // Send invalidation requests to all readers
-        cdt_packet_t read_inval;
-        cdt_packet_read_invalidate_req_create(&read_inval, PGROUNDDOWN(dest), host->self_id);
-        for (int i = 0; i < CDT_MAX_MACHINES; i++) {
-          if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id) { 
-            if (cdt_connection_send(&host->peers[i].connection, &read_inval) != 0) {
-              debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
-              pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-              return NULL;
-            }
-            cdt_packet_t resp_packet;
-            if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
-              pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-              return NULL;
-            }
-            uint64_t resp_page_addr;
-            uint32_t requester_id;
-            cdt_packet_read_invalidate_resp_parse(&resp_packet, &resp_page_addr, &requester_id);
-            assert(requester_id == host->self_id);
-            assert(resp_page_addr == PGROUNDDOWN(dest));
-            host->manager_pagetable[va_idx].read_set[i] = 0;
+        int read_count = 0;
+        cdt_packet_t packet;
+        cdt_packet_read_invalidate_req_create(&packet, page_addr, host->self_id);
+        for (int p = 0; p < CDT_MAX_MACHINES; p++) {
+          if (p != host->self_id && pte->read_set[p]) {
+            read_count++;
+            if (cdt_connection_send(&host->peers[p].connection, &packet) != 0)
+              return -1;
           }
         }
-        // Update manager PTE
-        assert(host->manager_pagetable[va_idx].read_set[host->self_id] == 1);
-        host->manager_pagetable[va_idx].read_set[host->self_id] = 0;
-        host->manager_pagetable[va_idx].writer = host->self_id;
 
-        void * local_copy = host->manager_pagetable[va_idx].page;
-        debug_print("old page: %s\n", (char *)local_copy);
-        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
-        memmove(((void *)(uint64_t)local_copy + offset), src, n);
-        debug_print("new page: %s\n", (char *)local_copy);
-        
-        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-        return dest;
+        for (int j = 0; j < read_count; j++) {
+          if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1)
+            return -1;
+          
+          uint64_t resp_page_addr;
+          uint32_t requester_id;
+          cdt_packet_read_invalidate_resp_parse(&packet, &resp_page_addr, &requester_id);
+          assert(requester_id == host->self_id);
+          assert(resp_page_addr == page_addr);
+        }
+
+        for (int p = 0; p < CDT_MAX_MACHINES; p++) {
+          if (p != host->self_id)
+            pte->read_set[p] = 0;
+        }
+
+        // Update manager PTE
+        assert(pte->read_set[host->self_id] == 1);
+        pte->read_set[host->self_id] = 0;
+        pte->writer = host->self_id;
+
+        void *local_copy = pte->page + offset;
+        memmove(local_copy, src, n);
       }
     }
+  }
+
+  return 0;
+}
+
+void* cdt_memcpy(void *dest, const void *src, size_t n) {
+  cdt_host_t *host = cdt_get_host();
+
+  // src and dest are both local
+  if (is_shared_va(dest) == 0 && is_shared_va(src) == 0) {
+    return memcpy(dest, src, n);
+  }
+
+  // Write shared mem: src is local and dest is shared
+  if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
+    debug_print("write case\n");
+    int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
+    int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest + n));
+
+    for (int i = start_va_idx; i <= end_va_idx; i++) {
+      pthread_mutex_lock(host->manager ? &host->manager_pagetable[i].lock : &host->shared_pagetable[i].lock);
+    }
+
+    int res = cdt_copyout(dest, src, n);
+
+    for (int i = start_va_idx; i <= end_va_idx; i++) {
+      pthread_mutex_unlock(host->manager ? &host->manager_pagetable[i].lock : &host->shared_pagetable[i].lock);
+    }
+
+    return res != 0 ? NULL : dest;
   }
   // Read shared mem: dest is local and src is shared
   if (is_shared_va(src) == 1 &&  is_shared_va(dest) == 0) {
@@ -252,7 +275,6 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
   }
 
   // TODO
-  // Case 3: src is local and dest is local
   // Case 4: src is shared and dest is shared
   return NULL;
 }
