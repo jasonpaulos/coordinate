@@ -64,7 +64,6 @@ int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   cdt_packet_t resp_pkt;
   cdt_packet_write_invalidate_resp_create(&resp_pkt, host->shared_pagetable[va_idx].page, requester_id);
 
-
   if (cdt_connection_send(&sender->connection, &resp_pkt) != 0) {
     debug_print("Failed to send write invalidate response packet to peer %d\n", sender->id);
     pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
@@ -105,7 +104,6 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
         pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
         return -1;
       }
-
       free(host->manager_pagetable[va_idx].page);
       host->manager_pagetable[va_idx].page = NULL;
       pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
@@ -141,11 +139,9 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
         debug_print("Failed to send write response packet\n");
         pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
         return -1;
-      }
-      
+      }    
       pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
       return 0;
-
     }
 
   } else { // Currently in R/O (not tested yet - need to get read working for this)
