@@ -19,7 +19,7 @@ void* cdt_malloc(size_t size) {
   if (host->manager) {
     printf("Manager trying to malloc\n");
     cdt_manager_pte_t * fresh_pte;
-    if (cdt_find_unused_pte(&fresh_pte, host->self_id) < 0) {
+    if (cdt_find_unused_pte_OLD(&fresh_pte, host->self_id) < 0) {
       return NULL;
     }
     // If we've gotten to this point, assume we're holding fresh_pte's lock

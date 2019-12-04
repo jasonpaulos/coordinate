@@ -43,6 +43,6 @@ int cdt_peer_start(cdt_peer_t *peer);
  */
 void cdt_peer_join(cdt_peer_t *peer);
 
-int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
+int cdt_find_unused_pte_OLD(cdt_manager_pte_t ** fresh_pte, int peer_id);
 
 #endif

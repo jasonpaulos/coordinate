@@ -41,6 +41,7 @@ void* cdt_worker_thread_start(void *arg) {
       break;
     case CDT_PACKET_ALLOC_REQ:
       res = cdt_allocate_shared_page(peer, &packet);
+      break;
     // more cases...
     default:
       debug_print("Unexpected packet type: %d\n", packet.type);
@@ -512,7 +513,7 @@ int cdt_worker_thread_join(cdt_peer_t *sender, cdt_packet_t *packet) {
 /* Finds an unused page table entry and puts the pointer to the PTE in *fresh_pte. 
    IMPORTANT: it returns holding the lock for the unused PTE if it succeeds in finding a fresh PTE.
    Returns 0 if successful in finding an unused PTE, -1 otherwise. */
-int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) {
+int cdt_find_unused_pte_OLD(cdt_manager_pte_t ** fresh_pte, int peer_id) {
   cdt_host_t *host = cdt_get_host();
 
   assert(host->manager == 1);
@@ -541,24 +542,73 @@ int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) {
   return 0;
 }
 
+int get_remaining_ptes(int first_unallocated_pte_idx, int peer_id, int num_ptes) {
+  cdt_host_t * host = cdt_get_host();
+  if (num_ptes + first_unallocated_pte_idx > CDT_MAX_SHARED_PAGES)
+    return -1;
+
+  for (int i = first_unallocated_pte_idx; i < num_ptes + first_unallocated_pte_idx; i++) {
+    cdt_manager_pte_t * current_pte = &host->manager_pagetable[i];
+    pthread_mutex_lock(&current_pte->lock);
+    if (current_pte->in_use == 0) {
+      current_pte->in_use = 1;
+      current_pte->writer = peer_id;
+      debug_print("fresh pte shared VA %p\n", (void *)host->manager_pagetable[i].shared_va);
+    } else {
+      debug_print("PTE %d in the unallocated region (past %d) is in use.\n", i, first_unallocated_pte_idx);
+      // Drop all held locks
+      for (int j = i; j >= first_unallocated_pte_idx; j--) {
+        pthread_mutex_unlock(&host->manager_pagetable[j].lock);
+      }
+      return -1;
+    }
+  }
+
+  // fetch and add host->manager_first_unallocate_pg_idx
+  __atomic_fetch_add(&host->manager_first_unallocated_pg_idx, num_ptes + 1, __ATOMIC_SEQ_CST);
+
+  return 0;
+}
+
+/* Finds an unused page table entry and puts the pointer to the PTE in *fresh_pte. 
+   IMPORTANT: it returns holding the lock for the unused PTE if it succeeds in finding a fresh PTE.
+   Returns 0 if successful in finding an unused PTE, -1 otherwise. */
+int cdt_find_unused_pte(int * start_pte_idx, int peer_id, int num_pages) {
+  cdt_host_t *host = cdt_get_host();
+
+  assert(host->manager == 1);
+
+  while (1) {
+    volatile int first_unalloc_page = host->manager_first_unallocated_pg_idx;
+    if (first_unalloc_page + num_pages > CDT_MAX_SHARED_PAGES)
+      return -1;
+    pthread_mutex_lock(&host->manager_pagetable[first_unalloc_page].lock);
+    if (first_unalloc_page == host->manager_first_unallocated_pg_idx) {
+      *start_pte_idx = first_unalloc_page;
+      host->manager_pagetable[first_unalloc_page].in_use = 1;
+      host->manager_pagetable[first_unalloc_page].writer = peer_id;
+      return get_remaining_ptes(first_unalloc_page + 1, peer_id, num_pages - 1);
+    } else {
+      pthread_mutex_unlock(&host->manager_pagetable[first_unalloc_page].lock);
+    }
+  }
+}
+
 int cdt_allocate_shared_page(cdt_peer_t * sender, cdt_packet_t *packet) {
+  cdt_host_t * host = cdt_get_host();
   uint32_t peer_id;
   uint32_t num_pages;
   cdt_packet_alloc_req_parse(packet, &peer_id, &num_pages);
-
   // Find the next not in-use PTE
-  cdt_manager_pte_t * fresh_pte;
-  if (cdt_find_unused_pte(&fresh_pte, sender->id) < 0) {
+  int start_pte_idx;
+  if (cdt_find_unused_pte(&start_pte_idx, peer_id, num_pages) < 0) {
     return -1;
   }
 
-  // If we've gotten to this point, assume we're holding fresh_pte's lock
-  fresh_pte->in_use = 1;
-  fresh_pte->writer = sender->id;
-
+  // If we've gotten to this point, assume we're holding the locks of all the pages from start_pte to start_pte + num_pages
   // Send the new shared VA back to the requester
   cdt_packet_t resp_packet;
-  cdt_packet_alloc_resp_create(&resp_packet, fresh_pte->shared_va, num_pages);
+  cdt_packet_alloc_resp_create(&resp_packet, IDX_TO_SHARED_VA(start_pte_idx), num_pages);
   if (cdt_connection_send(&sender->connection, &resp_packet) != 0) {
     debug_print("Error providing allocated page to peer %d at %s:%d\n", sender->id, sender->connection.address, sender->connection.port);
     cdt_connection_close(&sender->connection);
@@ -566,7 +616,10 @@ int cdt_allocate_shared_page(cdt_peer_t * sender, cdt_packet_t *packet) {
   }
   printf("Sent packet for allocated pte\n");
 
-  // TODO: should we release the lock earlier than this?
-  pthread_mutex_unlock(&fresh_pte->lock);
+  // Release all held locks
+  for (int j = start_pte_idx; j < start_pte_idx + num_pages; j++) {
+    pthread_mutex_unlock(&host->manager_pagetable[j].lock);
+  }
+
   return 0;
 }

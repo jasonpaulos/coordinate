@@ -34,7 +34,7 @@ int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
  */
 int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
-int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
+int cdt_find_unused_pte(int * start_pte_idx, int peer_id, int num_pages);
 
 /**
  * Handle CDT_PACKET_WRITE_DEMOTE_RESP
