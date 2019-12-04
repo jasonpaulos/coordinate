@@ -348,7 +348,14 @@ void* cdt_memcpy(void *dest, const void *src, size_t n) {
     return res != 0 ? NULL : dest;
   }
 
-  // TODO
-  // Case 4: src is shared and dest is shared
-  return NULL;
+  // src is shared and dest is shared
+  void *buffer = malloc(n);
+  if (!buffer)
+    return NULL;
+  
+  int res = cdt_memcpy(buffer, src, n) != NULL && cdt_memcpy(dest, buffer, n) != NULL;
+
+  free(buffer);
+
+  return res == 0 ? NULL : dest;
 }
