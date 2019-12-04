@@ -39,6 +39,8 @@ void* cdt_worker_thread_start(void *arg) {
     case CDT_PACKET_THREAD_JOIN_REQ:
       res = cdt_worker_thread_join(peer, &packet);
       break;
+    case CDT_PACKET_ALLOC_REQ:
+      res = cdt_allocate_shared_page(peer, &packet);
     // more cases...
     default:
       debug_print("Unexpected packet type: %d\n", packet.type);
@@ -539,23 +541,27 @@ int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id) {
   return 0;
 }
 
-int cdt_allocate_shared_page(cdt_peer_t * peer) {
+int cdt_allocate_shared_page(cdt_peer_t * sender, cdt_packet_t *packet) {
+  uint32_t peer_id;
+  uint32_t num_pages;
+  cdt_packet_alloc_req_parse(packet, &peer_id, &num_pages);
+
   // Find the next not in-use PTE
   cdt_manager_pte_t * fresh_pte;
-  if (cdt_find_unused_pte(&fresh_pte, peer->id) < 0) {
+  if (cdt_find_unused_pte(&fresh_pte, sender->id) < 0) {
     return -1;
   }
 
   // If we've gotten to this point, assume we're holding fresh_pte's lock
   fresh_pte->in_use = 1;
-  fresh_pte->writer = peer->id;
+  fresh_pte->writer = sender->id;
 
   // Send the new shared VA back to the requester
-  cdt_packet_t packet;
-  cdt_packet_alloc_resp_create(&packet, fresh_pte->shared_va);
-  if (cdt_connection_send(&peer->connection, &packet) != 0) {
-    debug_print("Error providing allocated page to peer %d at %s:%d\n", peer->id, peer->connection.address, peer->connection.port);
-    cdt_connection_close(&peer->connection);
+  cdt_packet_t resp_packet;
+  cdt_packet_alloc_resp_create(&resp_packet, fresh_pte->shared_va, num_pages);
+  if (cdt_connection_send(&sender->connection, &resp_packet) != 0) {
+    debug_print("Error providing allocated page to peer %d at %s:%d\n", sender->id, sender->connection.address, sender->connection.port);
+    cdt_connection_close(&sender->connection);
     return -1;
   }
   printf("Sent packet for allocated pte\n");

@@ -33,7 +33,7 @@ void* cdt_malloc(size_t size) {
   }
   // Not the manager, so send msg to manager requesting allocation
   cdt_packet_t packet;
-  cdt_packet_alloc_req_create(&packet, host->self_id);
+  cdt_packet_alloc_req_create(&packet, host->self_id, (uint32_t)size);
   
   if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
     fprintf(stderr, "Failed to send allocation request packet\n");
@@ -46,7 +46,8 @@ void* cdt_malloc(size_t size) {
   }
 
   uint64_t page_address;
-  cdt_packet_alloc_resp_parse(&packet, &page_address);
+  uint32_t resp_num_pages;
+  cdt_packet_alloc_resp_parse(&packet, &page_address, &resp_num_pages);
 
   printf("Received packet from manager receiver-thread with shared VA %p\n", (void*)page_address);
 

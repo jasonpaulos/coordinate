@@ -46,7 +46,7 @@ int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet);
  */
 int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
-int cdt_allocate_shared_page(cdt_peer_t * peer);
+int cdt_allocate_shared_page(cdt_peer_t *sender, cdt_packet_t *packet);
 /**
  * The underlying implementation of creating a thread.
  * 
