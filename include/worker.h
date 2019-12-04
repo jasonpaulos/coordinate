@@ -2,6 +2,7 @@
 #define COORDINATE_WORKER_H
 
 #include <stdint.h>
+#include "host.h"
 
 typedef struct cdt_peer_t cdt_peer_t;
 typedef struct cdt_packet_t cdt_packet_t;
@@ -20,6 +21,32 @@ void* cdt_worker_thread_start(void *arg);
  */
 int cdt_worker_thread_create(cdt_peer_t *sender, cdt_packet_t *packet);
 
+/**
+ * Handle CDT_PACKET_WRITE_REQ
+ */
+int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet);
+/**
+ * Handle CDT_PACKET_WRITE_INVALIDATE_REQ
+ */
+int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
+/**
+ * Handle CDT_PACKET_READ_INVALIDATE_REQ
+ */
+int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
+
+int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
+
+/**
+ * Handle CDT_PACKET_WRITE_DEMOTE_RESP
+ */
+int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet);
+
+/**
+ * Handle CDT_PACKET_READ_REQ
+ */
+int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet);
+
+int cdt_allocate_shared_page(cdt_peer_t * peer);
 /**
  * The underlying implementation of creating a thread.
  * 

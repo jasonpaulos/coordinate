@@ -25,7 +25,7 @@ void cdt_free(void *ptr);
  * 
  * One, both, or none of dest and src may reside in shared memory.
  */
-void* cdt_memcpy(void *dest, const void *src, size_t n);
+void* cdt_memcpy(void *dest, void *src, size_t n);
 
 #ifdef __cplusplus
 }
