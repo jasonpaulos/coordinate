@@ -162,8 +162,8 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       assert(requester_id == sender->id);
       // Update mngr PTE access and page
       host->manager_pagetable[va_idx].writer = sender->id;
-      host->shared_pagetable[va_idx].in_use = 1;
-      host->shared_pagetable[va_idx].page = NULL; // technically should already be null
+      host->manager_pagetable[va_idx].in_use = 1;
+      host->manager_pagetable[va_idx].page = NULL; // technically should already be null
 
       cdt_packet_t write_resp;
       cdt_packet_write_resp_create(&write_resp, page);
