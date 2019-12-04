@@ -37,7 +37,6 @@ void* cdt_worker_thread_start(void *arg) {
       debug_print("Received a read-invalidate request from peer %d\n", peer->id);
       res = cdt_worker_read_invalidate_req(peer, &packet);
       break;
-
     // more cases...
     default:
       debug_print("Unexpected packet type: %d\n", packet.type);
@@ -79,7 +78,6 @@ int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   host->shared_pagetable[va_idx].page = NULL;
   pthread_mutex_unlock(&host->shared_pagetable[va_idx].lock);
   return 0;  
-
 }
 
 int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
@@ -180,11 +178,11 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
 
   } else { // Currently in R/O (not tested yet - need to get read working for this)
     // Send invalidation requests to all readers and send the page back to the requester
-    cdt_packet_t packet;
-    cdt_packet_read_invalidate_req_create(&packet, page_addr, sender->id);
+    cdt_packet_t read_inval;
+    cdt_packet_read_invalidate_req_create(&read_inval, page_addr, sender->id);
     for (int i = 0; i < CDT_MAX_MACHINES; i++) {
       if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id) { 
-        if (cdt_connection_send(&host->peers[i].connection, &packet) != 0) {
+        if (cdt_connection_send(&host->peers[i].connection, &read_inval) != 0) {
           debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
           pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
           return -1;
@@ -194,14 +192,33 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
           pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
           return -1;
         }
+        uint64_t resp_page_addr;
+        uint32_t requester_id;
+        cdt_packet_read_invalidate_resp_parse(&resp_packet, &resp_page_addr, &requester_id);
+        assert(requester_id == sender->id);
+        assert(resp_page_addr == PGROUNDDOWN(page_addr));
+        host->manager_pagetable[va_idx].read_set[i] = 0;
       }
     }
     // Update manager PTE
+    assert(host->manager_pagetable[va_idx].read_set[host->self_id] == 1);
+    host->manager_pagetable[va_idx].read_set[host->self_id] = 0;
+    host->manager_pagetable[va_idx].writer = sender->id;
 
     // Send page to requester
-
+    cdt_packet_t write_resp;
+    cdt_packet_write_resp_create(&write_resp, host->manager_pagetable[va_idx].page);
+    if (cdt_connection_send(&sender->connection, &write_resp) != 0) {
+      debug_print("Failed to send write response packet\n");
+      pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+      return -1;
+    }    
+    free(host->manager_pagetable[va_idx].page);
+    host->manager_pagetable[va_idx].page = NULL;
+    pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+    return 0;
   }
-  return 0;
+  return -1;
 }
 
 int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet) {
