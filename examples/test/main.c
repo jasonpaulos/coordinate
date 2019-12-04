@@ -5,7 +5,7 @@
 
 void* test0_helper(void* arg) {
   printf("Hello from the second thread, my arg is %p\n", arg);
-  void * page = cdt_malloc(5);
+  void * page = cdt_malloc(5 * 4096);
   char * src = "a";
   
   cdt_memcpy(page, (void *)src, 1);
