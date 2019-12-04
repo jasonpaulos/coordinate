@@ -88,10 +88,11 @@ void cdt_packet_read_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
 void cdt_packet_read_resp_create(cdt_packet_t *packet, void *page);
 void cdt_packet_read_resp_parse(cdt_packet_t *packet, void **page);
 
-void cdt_packet_read_invalidate_req_create(cdt_packet_t *packet, uint64_t page_addr);
-void cdt_packet_read_invalidate_req_parse(cdt_packet_t *packet, uint64_t *page_addr);
+void cdt_packet_read_invalidate_req_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id);
+void cdt_packet_read_invalidate_req_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id);
 
-void cdt_packet_read_invalidate_resp_create(cdt_packet_t *packet);
+void cdt_packet_read_invalidate_resp_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id);
+void cdt_packet_read_invalidate_resp_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id);
 
 void cdt_packet_write_req_create(cdt_packet_t *packet, uint64_t page_addr);
 void cdt_packet_write_req_parse(cdt_packet_t *packet, uint64_t *page_addr);

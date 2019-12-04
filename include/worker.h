@@ -29,6 +29,10 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet);
  * Handle CDT_PACKET_WRITE_INVALIDATE_REQ
  */
 int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
+/**
+ * Handle CDT_PACKET_READ_INVALIDATE_REQ
+ */
+int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
 int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
 

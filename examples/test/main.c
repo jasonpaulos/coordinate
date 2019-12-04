@@ -81,6 +81,57 @@ void test3_malloc_on_peer1_write_on_peer2(void) {
 
   sleep(500);
 }
+void* test4_helper(void* arg) {
+  printf("Hello from the second thread, my arg is %p\n", arg);
+  void * src = (void *)(1L << 32);
+  char dest[2];
+  
+  cdt_memcpy(dest, (void *)src, 1);
+  printf("Read into local buf: %s\n", dest);
+  return NULL;
+}
+
+void test4_malloc_on_mngr_read_on_peer(void) {
+  printf("Hello from the main thread\n");
+  void * page = cdt_malloc(1);
+  char * src = "a";
+  
+  cdt_memcpy(page, (void *)src, 1);
+  
+  cdt_thread_t thread;
+  cdt_thread_create(&thread, test4_helper, NULL);
+
+  sleep(500);
+}
+
+void* test5_helper(void* arg) {
+  printf("Hello from the second thread, my arg is %p\n", arg);
+  void * src = (void *)(1L << 32);
+  char dest[2];
+  
+  cdt_memcpy(dest, (void *)src, 1);
+  printf("Read into local buf: %s\n", dest);
+  sleep(50);
+  return NULL;
+}
+
+void test5_malloc_on_mngr_read_on_peer_write_on_mngr(void) {
+  printf("Hello from the main thread\n");
+  void * page = cdt_malloc(1);
+  char * src = "a";
+  
+  cdt_memcpy(page, (void *)src, 1);
+  
+  cdt_thread_t thread;
+  cdt_thread_create(&thread, test4_helper, NULL);
+
+  sleep(5);
+
+  void * dest = (void *)(1L << 32);
+  char * new_src = "b";
+  cdt_memcpy(dest, (void *)new_src, 1);
+
+}
 
 void* print_message(void* arg) {
   printf("Hello from the second thread, my arg is %p\n", arg);
@@ -104,6 +155,6 @@ int main(int argc, char *argv[]) {
   // cdt_thread_join(&thread, &return_value);
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
-  test3_malloc_on_peer1_write_on_peer2();
+  test5_malloc_on_mngr_read_on_peer_write_on_mngr();
   return 0;
 }

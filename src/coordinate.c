@@ -164,9 +164,43 @@ void* cdt_memcpy(void *dest, void *src, size_t n) {
           pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
           return dest;
         }
-
       } else { // page is in R/O mode
+        // Send invalidation requests to all readers
+        cdt_packet_t read_inval;
+        cdt_packet_read_invalidate_req_create(&read_inval, PGROUNDDOWN(dest), host->self_id);
+        for (int i = 0; i < CDT_MAX_MACHINES; i++) {
+          if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id) { 
+            if (cdt_connection_send(&host->peers[i].connection, &read_inval) != 0) {
+              debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
+              pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+              return NULL;
+            }
+            cdt_packet_t resp_packet;
+            if (mq_receive(host->peers[host->self_id].task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
+              pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+              return NULL;
+            }
+            uint64_t resp_page_addr;
+            uint32_t requester_id;
+            cdt_packet_read_invalidate_resp_parse(&resp_packet, &resp_page_addr, &requester_id);
+            assert(requester_id == host->self_id);
+            assert(resp_page_addr == PGROUNDDOWN(dest));
+            host->manager_pagetable[va_idx].read_set[i] = 0;
+          }
+        }
+        // Update manager PTE
+        assert(host->manager_pagetable[va_idx].read_set[host->self_id] == 1);
+        host->manager_pagetable[va_idx].read_set[host->self_id] = 0;
+        host->manager_pagetable[va_idx].writer = host->self_id;
 
+        void * local_copy = host->manager_pagetable[va_idx].page;
+        debug_print("old page: %s\n", (char *)local_copy);
+        uint64_t offset = (uint64_t)dest - PGROUNDDOWN(dest);
+        memmove(((void *)(uint64_t)local_copy + offset), src, n);
+        debug_print("new page: %s\n", (char *)local_copy);
+        
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return dest;
       }
     }
   }

@@ -254,23 +254,42 @@ void cdt_packet_read_resp_parse(cdt_packet_t *packet, void **page) {
   *page = packet->data;
 }
 
-void cdt_packet_read_invalidate_req_create(cdt_packet_t *packet, uint64_t page_addr) {
+void cdt_packet_read_invalidate_req_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id) {
   packet->type = CDT_PACKET_READ_INVALIDATE_REQ;
-  packet->size = sizeof(page_addr);
+  packet->size = sizeof(requester_id) + sizeof(page_addr);
 
+  requester_id = htonl(requester_id);
   page_addr = htonll(page_addr);
-  memmove(packet->data, &page_addr, sizeof(page_addr));
+  memmove(packet->data, &requester_id, sizeof(requester_id));
+  memmove(packet->data + sizeof(requester_id), &page_addr, sizeof(page_addr));
 }
 
-void cdt_packet_read_invalidate_req_parse(cdt_packet_t *packet, uint64_t *page_addr) {
+void cdt_packet_read_invalidate_req_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id) {
   assert(packet->type == CDT_PACKET_READ_INVALIDATE_REQ);
 
-  memmove(page_addr, packet->data, sizeof(*page_addr));
+  memmove(requester_id, packet->data, sizeof(*requester_id));
+  memmove(page_addr, packet->data + sizeof(*requester_id), sizeof(*page_addr));
+  *requester_id = ntohl(*requester_id);
   *page_addr = ntohll(*page_addr);
 }
 
-void cdt_packet_read_invalidate_resp_create(cdt_packet_t *packet) {
+void cdt_packet_read_invalidate_resp_create(cdt_packet_t *packet, uint64_t page_addr, uint32_t requester_id) {
   packet->type = CDT_PACKET_READ_INVALIDATE_RESP;
+  packet->size = sizeof(requester_id) + sizeof(page_addr);
+
+  requester_id = htonl(requester_id);
+  page_addr = htonll(page_addr);
+  memmove(packet->data, &requester_id, sizeof(requester_id));
+  memmove(packet->data + sizeof(requester_id), &page_addr, sizeof(page_addr));
+}
+
+void cdt_packet_read_invalidate_resp_parse(cdt_packet_t *packet, uint64_t *page_addr, uint32_t *requester_id) {
+  assert(packet->type == CDT_PACKET_READ_INVALIDATE_RESP);
+
+  memmove(requester_id, packet->data, sizeof(*requester_id));
+  memmove(page_addr, packet->data + sizeof(*requester_id), sizeof(*page_addr));
+  *requester_id = ntohl(*requester_id);
+  *page_addr = ntohll(*page_addr);
 }
 
 void cdt_packet_write_req_create(cdt_packet_t *packet, uint64_t page_addr) {
