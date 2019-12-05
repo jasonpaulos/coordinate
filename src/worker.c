@@ -182,12 +182,12 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       return 0;
     }
 
-  } else { // Currently in R/O (not tested yet - need to get read working for this)
+  } else {
     // Send invalidation requests to all readers and send the page back to the requester
     cdt_packet_t read_inval;
     cdt_packet_read_invalidate_req_create(&read_inval, page_addr, sender->id);
     for (int i = 0; i < CDT_MAX_MACHINES; i++) {
-      if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id) { 
+      if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id && i != sender->id) { 
         if (cdt_connection_send(&host->peers[i].connection, &read_inval) != 0) {
           debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
           pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
@@ -209,6 +209,7 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
     // Update manager PTE
     assert(host->manager_pagetable[va_idx].read_set[host->self_id] == 1);
     host->manager_pagetable[va_idx].read_set[host->self_id] = 0;
+    host->manager_pagetable[va_idx].read_set[sender->id] = 0;
     host->manager_pagetable[va_idx].writer = sender->id;
 
     // Send page to requester
