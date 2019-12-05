@@ -11,6 +11,13 @@ extern "C" {
 #include "thread.h"
 
 /**
+ * Gets the number of cores available to this process.
+ * 
+ * When run under dsm mode, this is the maximum number of threads that can be created.
+ */
+int cdt_get_cores();
+
+/**
  * Allocates size bytes of shared memory and returns a pointer to the allocated memory.
  */
 void* cdt_malloc(size_t size);

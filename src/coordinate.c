@@ -8,6 +8,14 @@
 #include "coordinate.h"
 #include "worker.h"
 
+int cdt_get_cores() {
+  cdt_host_t *host = cdt_get_host();
+  if (!host)
+    return 0;
+  
+  return host->num_peers;
+}
+
 // Returns NULL on failure. size is the number of bytes requested.
 void* cdt_malloc(size_t size) {
   cdt_host_t *host = cdt_get_host();
