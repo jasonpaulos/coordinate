@@ -131,7 +131,7 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
     // Manager is attempting to write
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = IDX_TO_SHARED_VA(i);
       uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
       size_t length = i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE;
       const void *src_addr = src + (i - start_va_idx) * PAGESIZE + offset;
@@ -265,7 +265,7 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
     // Manager is attempting to read
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = IDX_TO_SHARED_VA(i);
       uint64_t offset = i == start_va_idx ? (uint64_t)src - PGROUNDDOWN(src) : 0;
       size_t length = i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE;
       void *dest_addr = dest + (i - start_va_idx) * PAGESIZE + offset;
