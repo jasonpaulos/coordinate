@@ -36,6 +36,7 @@ void* cdt_worker_thread_start(void *arg) {
     case CDT_PACKET_READ_INVALIDATE_REQ:
       debug_print("Received a read-invalidate request from peer %d\n", peer->id);
       res = cdt_worker_read_invalidate_req(peer, &packet);
+      break;
     case CDT_PACKET_THREAD_JOIN_REQ:
       res = cdt_worker_thread_join(peer, &packet);
       break;
