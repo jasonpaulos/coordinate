@@ -52,6 +52,9 @@ void* cdt_malloc(size_t size) {
   cdt_packet_alloc_resp_parse(&packet, &page_address, &resp_num_pages);
   assert(resp_num_pages == num_pages_req);
 
+  if (page_address == 0)
+    return NULL;
+
   printf("Received packet from manager receiver-thread with shared VA %p and %d pages\n", (void*)page_address, resp_num_pages);
 
   int pte_idx = SHARED_VA_TO_IDX(page_address);
