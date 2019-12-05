@@ -22,10 +22,10 @@ void* cdt_malloc(size_t size) {
 
   if (host->manager) {
     printf("Manager trying to malloc\n");
-    int start_pte_idx;
-    if (cdt_find_unused_pte(&start_pte_idx, host->self_id, num_pages_req) < 0) {
+    int start_pte_idx = cdt_find_unused_pte(host->self_id, num_pages_req);
+    if (start_pte_idx == -1)
       return NULL;
-    }
+
     // If we've gotten to this point, assume we're holding lock of all PTEs from start_pte_idx to start_pte_idx + num_pages_req
     for (int i = start_pte_idx; i < start_pte_idx + num_pages_req; i++) {
       host->manager_pagetable[i].page = calloc(1, PAGESIZE);
