@@ -100,34 +100,42 @@ void cdt_packet_existing_peer_parse(cdt_packet_t *packet, uint32_t *peer_id) {
   *peer_id = ntohl(*peer_id);
 }
 
-void cdt_packet_alloc_req_create(cdt_packet_t *packet, uint32_t peer_id) {
+void cdt_packet_alloc_req_create(cdt_packet_t *packet, uint32_t peer_id, uint32_t num_pages) {
   packet->type = CDT_PACKET_ALLOC_REQ;
-  packet->size = sizeof(peer_id);
+  packet->size = sizeof(peer_id) + sizeof(num_pages);
 
   peer_id = htonl(peer_id);
+  num_pages = htonl(num_pages);
   memmove(packet->data, &peer_id, sizeof(peer_id));
+  memmove(packet->data + sizeof(peer_id), &num_pages, sizeof(num_pages));
 }
 
-void cdt_packet_alloc_req_parse(cdt_packet_t *packet, uint32_t *peer_id) {
+void cdt_packet_alloc_req_parse(cdt_packet_t *packet, uint32_t *peer_id, uint32_t *num_pages) {
   assert(packet->type == CDT_PACKET_ALLOC_REQ);
 
   memmove(peer_id, packet->data, sizeof(*peer_id));
+  memmove(num_pages, packet->data + sizeof(*peer_id), sizeof(*num_pages));
   *peer_id = ntohl(*peer_id);
+  *num_pages = ntohl(*num_pages);
 }
 
-void cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page) {
+void cdt_packet_alloc_resp_create(cdt_packet_t *packet, uint64_t page, uint32_t num_pages) {
   packet->type = CDT_PACKET_ALLOC_RESP;
-  packet->size = sizeof(page);
+  packet->size = sizeof(page) + sizeof(num_pages);
 
   page = htonll(page);
+  num_pages = htonl(num_pages);
   memmove(packet->data, &page, sizeof(page));
+  memmove(packet->data + sizeof(page), &num_pages, sizeof(num_pages));
 }
 
-void cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t *page) {
+void cdt_packet_alloc_resp_parse(cdt_packet_t *packet, uint64_t *page, uint32_t *num_pages) {
   assert(packet->type == CDT_PACKET_ALLOC_RESP);
 
   memmove(page, packet->data, sizeof(*page));
+  memmove(num_pages, packet->data + sizeof(*page), sizeof(*num_pages));
   *page = ntohll(*page);
+  *num_pages = ntohl(*num_pages);
 }
 
 void cdt_packet_thread_create_req_create(cdt_packet_t *packet, uint64_t procedure, uint64_t arg) {

@@ -8,7 +8,7 @@
 #include "coordinate.h"
 #include "worker.h"
 
-// Returns NULL on failure
+// Returns NULL on failure. size is the number of bytes requested.
 void* cdt_malloc(size_t size) {
   cdt_host_t *host = cdt_get_host();
   if (!host) {
@@ -16,24 +16,26 @@ void* cdt_malloc(size_t size) {
     return NULL;
   }
 
+  uint32_t num_pages_req = (uint32_t)(size / PAGESIZE);
+  if (size % PAGESIZE  != 0) 
+    num_pages_req++;
+
   if (host->manager) {
     printf("Manager trying to malloc\n");
-    cdt_manager_pte_t * fresh_pte;
-    if (cdt_find_unused_pte(&fresh_pte, host->self_id) < 0) {
+    int start_pte_idx = cdt_find_unused_pte(host->self_id, num_pages_req);
+    if (start_pte_idx == -1)
       return NULL;
-    }
-    // If we've gotten to this point, assume we're holding fresh_pte's lock
-    fresh_pte->in_use = 1;
-    fresh_pte->writer = 0;
-    fresh_pte->page = malloc(PAGESIZE);
-    pthread_mutex_unlock(&fresh_pte->lock);
-    return (void *)fresh_pte->shared_va;
-    return NULL;
 
+    // If we've gotten to this point, assume we're holding lock of all PTEs from start_pte_idx to start_pte_idx + num_pages_req
+    for (int i = start_pte_idx; i < start_pte_idx + num_pages_req; i++) {
+      host->manager_pagetable[i].page = calloc(1, PAGESIZE);
+      pthread_mutex_unlock(&host->manager_pagetable[i].lock);
+    }
+    return (void *)host->manager_pagetable[start_pte_idx].shared_va;
   }
   // Not the manager, so send msg to manager requesting allocation
   cdt_packet_t packet;
-  cdt_packet_alloc_req_create(&packet, host->self_id);
+  cdt_packet_alloc_req_create(&packet, host->self_id, num_pages_req);
   
   if (cdt_connection_send(&host->peers[0].connection, &packet) != 0) {
     fprintf(stderr, "Failed to send allocation request packet\n");
@@ -46,18 +48,26 @@ void* cdt_malloc(size_t size) {
   }
 
   uint64_t page_address;
-  cdt_packet_alloc_resp_parse(&packet, &page_address);
+  uint32_t resp_num_pages;
+  cdt_packet_alloc_resp_parse(&packet, &page_address, &resp_num_pages);
+  assert(resp_num_pages == num_pages_req);
 
-  printf("Received packet from manager receiver-thread with shared VA %p\n", (void*)page_address);
+  if (page_address == 0)
+    return NULL;
+
+  printf("Received packet from manager receiver-thread with shared VA %p and %d pages\n", (void*)page_address, resp_num_pages);
 
   int pte_idx = SHARED_VA_TO_IDX(page_address);
-  printf("pte idx: %d\n", pte_idx);
-  pthread_mutex_lock(&host->shared_pagetable[pte_idx].lock);
-  host->shared_pagetable[pte_idx].in_use = 1;
-  host->shared_pagetable[pte_idx].access = READ_WRITE_PAGE;
-  host->shared_pagetable[pte_idx].page = malloc(PAGESIZE);
-  printf("Filled in PTE index %d with new local pointer %p\n", pte_idx, host->shared_pagetable[pte_idx].page);
-  pthread_mutex_unlock(&host->shared_pagetable[pte_idx].lock);
+  // Note: there's probably a race here
+  for (int i = pte_idx; i < pte_idx + resp_num_pages; i++) {
+    printf("pte idx: %d\n", i);
+    pthread_mutex_lock(&host->shared_pagetable[i].lock);
+    host->shared_pagetable[i].in_use = 1;
+    host->shared_pagetable[i].access = READ_WRITE_PAGE;
+    host->shared_pagetable[i].page = calloc(1, PAGESIZE);
+    printf("Filled in PTE index %d with new local pointer %p\n", i, host->shared_pagetable[i].page);
+    pthread_mutex_unlock(&host->shared_pagetable[i].lock);
+  }
 
   return (void *)page_address;
 }
@@ -121,7 +131,7 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
     // Manager is attempting to write
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = IDX_TO_SHARED_VA(i);
       uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
       size_t length = i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE;
       const void *src_addr = src + (i - start_va_idx) * PAGESIZE + offset;
@@ -255,7 +265,7 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
     // Manager is attempting to read
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = SHARED_IDX_TO_VA(i);
+      uint64_t page_addr = IDX_TO_SHARED_VA(i);
       uint64_t offset = i == start_va_idx ? (uint64_t)src - PGROUNDDOWN(src) : 0;
       size_t length = i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE;
       void *dest_addr = dest + (i - start_va_idx) * PAGESIZE + offset;

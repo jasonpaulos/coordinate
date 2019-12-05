@@ -93,22 +93,9 @@ void* cdt_peer_thread(void *arg) {
       }
 
       printf("Greeted new peer %d at %s:%s\n", peer_id, address, port);
-    } else if (packet.type == CDT_PACKET_ALLOC_REQ && host->manager == 1) { // only the manager can allocate a page
-      uint32_t peer_id;
-      cdt_packet_alloc_req_parse(&packet, &peer_id);
-      printf("Received allocation request from peer %d\n", peer_id);
-
-      if (cdt_allocate_shared_page(peer) != 0) {
-        fprintf(stderr, "Failed to allocate new page for peer %d\n", peer_id);
-        break;
-      }
     } else if (packet.type == CDT_PACKET_ALLOC_RESP && peer->id == 0) { // only the manager receiver thread (peer 0) can respond to allocation responses
-      uint64_t page;
-      cdt_packet_alloc_resp_parse(&packet, &page);
-      debug_print("Received allocation response with page %p\n", (void *)page);
-
       if (mq_send(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), 0) == -1) {
-        debug_print("Failed to send allocation response message to main thread\n");
+        debug_print("Failed to send allocation response message to main thread: %s\n", strerror(errno));
         return NULL;
       }
     } else if (packet.type == CDT_PACKET_THREAD_CREATE_RESP && peer->id == 0) { // only the manager (peer 0) can respond to thread create reqs

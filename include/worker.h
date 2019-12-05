@@ -34,7 +34,11 @@ int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
  */
 int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
-int cdt_find_unused_pte(cdt_manager_pte_t ** fresh_pte, int peer_id);
+/** Finds a series of unused page table entries and returns the beginning index of the PTE if successful.
+  * If unsuccessful, returns -1.
+  * IMPORTANT: it returns holding the locks for every PTE in the range if successful.
+  */
+int cdt_find_unused_pte(uint32_t peer_id, uint32_t num_pages);
 
 /**
  * Handle CDT_PACKET_WRITE_DEMOTE_RESP
@@ -46,7 +50,7 @@ int cdt_worker_write_demote(cdt_peer_t *sender, cdt_packet_t *packet);
  */
 int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet);
 
-int cdt_allocate_shared_page(cdt_peer_t * peer);
+int cdt_allocate_shared_page(cdt_peer_t *sender, cdt_packet_t *packet);
 /**
  * The underlying implementation of creating a thread.
  * 
