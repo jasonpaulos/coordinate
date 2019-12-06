@@ -61,11 +61,12 @@ int cdt_worker_read_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
 
   cdt_host_t * host = cdt_get_host();
   int va_idx = SHARED_VA_TO_IDX(page_addr);
-  pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+  pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
 
   assert(page_addr - PGROUNDDOWN(page_addr) == 0);
   assert(!host->manager); // The mngr should never receive invalidation requests
-  assert(host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_ONLY_PAGE);
+  assert(host->shared_pagetable[va_idx].in_use);
+  assert(host->shared_pagetable[va_idx].access == READ_ONLY_PAGE);
 
   cdt_packet_t resp_pkt;
   cdt_packet_read_invalidate_resp_create(&resp_pkt, page_addr, requester_id);
@@ -90,11 +91,12 @@ int cdt_worker_write_invalidate_req(cdt_peer_t *sender, cdt_packet_t *packet) {
 
   cdt_host_t * host = cdt_get_host();
   int va_idx = SHARED_VA_TO_IDX(page_addr);
-  pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+  pthread_mutex_lock(&host->shared_pagetable[va_idx].lock);
 
   assert(page_addr - PGROUNDDOWN(page_addr) == 0);
   assert(!host->manager); // The mngr should never receive invalidation requests
-  assert(host->shared_pagetable[va_idx].in_use && host->shared_pagetable[va_idx].access == READ_WRITE_PAGE);
+  assert(host->shared_pagetable[va_idx].in_use);
+  assert(host->shared_pagetable[va_idx].access == READ_WRITE_PAGE);
 
   cdt_packet_t resp_pkt;
   cdt_packet_write_invalidate_resp_create(&resp_pkt, host->shared_pagetable[va_idx].page, requester_id);
@@ -120,7 +122,9 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   int va_idx = SHARED_VA_TO_IDX(page_addr);
   cdt_host_t * host = cdt_get_host();
   pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
+
   if (!host->manager_pagetable[va_idx].in_use) {
+    debug_print("Got a write request for page %p with idx %d that is not in use in the manager page table\n", (void *)page_addr, va_idx);
     pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
     return -1;
   }
@@ -152,6 +156,7 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       cdt_packet_t resp_packet;
       if (mq_receive(sender->task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
         debug_print("Failed to receive a write-invalidate response message from manager receiver-thread\n");
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
         return -1;
       }
       void * page;
@@ -169,45 +174,47 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
         debug_print("Failed to send write response packet\n");
         pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
         return -1;
-      }    
+      }
       pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
       return 0;
     }
 
   } else {
     // Send invalidation requests to all readers and send the page back to the requester
-    cdt_packet_t read_inval;
-    cdt_packet_read_invalidate_req_create(&read_inval, page_addr, sender->id);
+    int read_count = 0;
+    cdt_packet_t packet;
+    cdt_packet_read_invalidate_req_create(&packet, page_addr, sender->id);
     for (int i = 0; i < CDT_MAX_MACHINES; i++) {
-      if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id && i != sender->id) { 
-        if (cdt_connection_send(&host->peers[i].connection, &read_inval) != 0) {
+      if (host->manager_pagetable[va_idx].read_set[i] && i != host->self_id && i != sender->id) {
+        read_count++;
+        if (cdt_connection_send(&host->peers[i].connection, &packet) != 0) {
           debug_print("Failed to send read-invalidate request packet to peer %d\n", i);
           pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
           return -1;
         }
-        cdt_packet_t resp_packet;
-        if (mq_receive(sender->task_queue, (char*)&resp_packet, sizeof(resp_packet), NULL) == -1) {
-          pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
-          return -1;
-        }
-        uint64_t resp_page_addr;
-        uint32_t requester_id;
-        cdt_packet_read_invalidate_resp_parse(&resp_packet, &resp_page_addr, &requester_id);
-        assert(requester_id == sender->id);
-        assert(resp_page_addr == PGROUNDDOWN(page_addr));
-        host->manager_pagetable[va_idx].read_set[i] = 0;
       }
     }
-    // Update manager PTE
-    assert(host->manager_pagetable[va_idx].read_set[host->self_id] == 1);
-    host->manager_pagetable[va_idx].read_set[host->self_id] = 0;
-    host->manager_pagetable[va_idx].read_set[sender->id] = 0;
+
+    for (int j = 0; j < read_count; j++) {
+      if (mq_receive(sender->task_queue, (char*)&packet, sizeof(packet), NULL) == -1) {
+        pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
+        return -1;
+      }
+      uint64_t resp_page_addr;
+      uint32_t requester_id;
+      cdt_packet_read_invalidate_resp_parse(&packet, &resp_page_addr, &requester_id);
+      assert(requester_id == sender->id);
+      assert(resp_page_addr == PGROUNDDOWN(page_addr));
+    }
+
+    for (int p = 0; p < CDT_MAX_MACHINES; p++)
+      host->manager_pagetable[va_idx].read_set[p] = 0;
+    
     host->manager_pagetable[va_idx].writer = sender->id;
 
     // Send page to requester
-    cdt_packet_t write_resp;
-    cdt_packet_write_resp_create(&write_resp, host->manager_pagetable[va_idx].page);
-    if (cdt_connection_send(&sender->connection, &write_resp) != 0) {
+    cdt_packet_write_resp_create(&packet, host->manager_pagetable[va_idx].page);
+    if (cdt_connection_send(&sender->connection, &packet) != 0) {
       debug_print("Failed to send write response packet\n");
       pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
       return -1;
@@ -527,22 +534,26 @@ int cdt_allocate_shared_page(cdt_peer_t * sender, cdt_packet_t *packet) {
   cdt_packet_alloc_req_parse(packet, &peer_id, &num_pages);
   // Find the next not in-use PTE
   int start_pte_idx = cdt_find_unused_pte(peer_id, num_pages);
+  uint64_t page_addr;
+
   if (start_pte_idx >= 0) {
+    page_addr = host->manager_pagetable[start_pte_idx].shared_va;
+
     // Release all held locks
     for (int j = start_pte_idx; j < start_pte_idx + num_pages; j++) {
       pthread_mutex_unlock(&host->manager_pagetable[j].lock);
     }
-
-    cdt_packet_alloc_resp_create(packet, IDX_TO_SHARED_VA(start_pte_idx), num_pages);
   } else {
-    cdt_packet_alloc_resp_create(packet, 0, 0);
+    page_addr = 0;
+    num_pages = 0;
   }
+
+  cdt_packet_alloc_resp_create(packet, page_addr, num_pages);
 
   if (cdt_connection_send(&sender->connection, packet) != 0) {
     debug_print("Error providing allocated page to peer %d at %s:%d\n", sender->id, sender->connection.address, sender->connection.port);
     return -1;
   }
-  printf("Sent packet for allocated pte\n");
 
   return 0;
 }

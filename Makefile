@@ -67,7 +67,7 @@ gdb: $(CLI)
 
 clean:
 	rm -rf $(ODIR)
-	$(foreach dir,$(EXAMPLES),$(MAKE) -C $(dir) clean)
+	$(foreach dir,$(EXAMPLES),$(MAKE) -C $(dir) clean;)
 
 install: $(LIB_LOC) $(LIB_DSM) $(CLI)
 	cp $(LIB_LOC) $(INSTALL_DIR)/lib/libcoordinate.so
