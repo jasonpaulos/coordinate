@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <coordinate.h>
 #include <stdlib.h>
+#include <time.h>
 
 void* test0_helper(void* arg) {
   printf("Hello from the second thread, my arg is %p\n", arg);
@@ -197,7 +198,6 @@ void* dot_product_worker(void* arg) {
   // Copy out the assignment
   worker_assignment assignment;
   cdt_memcpy((void *)&assignment, arg, sizeof(assignment));
-  printf("Vec a start: %p, vec b start: %p, section len: %d\n", assignment.vec_a_start, assignment.vec_b_start, assignment.section_len);
 
   // Iterate over each byte of both vec_a and vec_b for the section, multiplying
   intptr_t result = 0;
@@ -221,6 +221,9 @@ void fill_random_vector(uint8_t * vector, int vector_size) {
 // Assume it is divisible by the number of cores.
 void dot_product_test(int vector_size, int num_peers) {
   printf("Starting dot product test\n");
+  clock_t start, end; 
+  start = clock(); 
+  
   void * vec_a = cdt_malloc(vector_size);
   void * vec_b = cdt_malloc(vector_size);
 
@@ -255,7 +258,11 @@ void dot_product_test(int vector_size, int num_peers) {
     cdt_thread_join(&threads[i], &return_value);
     result += (intptr_t)return_value;
   }
-  printf("Dot product example result: %ld\n", result);
+
+  end = clock();
+  double time_taken = ((double)(end - start))/CLOCKS_PER_SEC;
+
+  printf("Dot product example result: %ld with time %f\n", result, time_taken);
 }
 
 int main(int argc, char *argv[]) {
