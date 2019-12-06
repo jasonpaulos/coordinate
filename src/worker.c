@@ -26,15 +26,12 @@ void* cdt_worker_thread_start(void *arg) {
       res = cdt_worker_write_demote(peer, &packet);
       break;
     case CDT_PACKET_WRITE_REQ:
-      debug_print("Received a write request from peer %d\n", peer->id);
       res = cdt_worker_write_req(peer, &packet);
       break;
     case CDT_PACKET_WRITE_INVALIDATE_REQ:
-      debug_print("Received a write-invalidate request from peer %d\n", peer->id);
       res = cdt_worker_write_invalidate_req(peer, &packet);
       break;
     case CDT_PACKET_READ_INVALIDATE_REQ:
-      debug_print("Received a read-invalidate request from peer %d\n", peer->id);
       res = cdt_worker_read_invalidate_req(peer, &packet);
       break;
     case CDT_PACKET_THREAD_JOIN_REQ:
@@ -124,15 +121,12 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   cdt_host_t * host = cdt_get_host();
   pthread_mutex_lock(&host->manager_pagetable[va_idx].lock);
   if (!host->manager_pagetable[va_idx].in_use) {
-    debug_print("Got a write request for page %p with idx %d that is not in use in the manager page table\n", (void *)page_addr, va_idx);
     pthread_mutex_unlock(&host->manager_pagetable[va_idx].lock);
     return -1;
   }
   if (host->manager_pagetable[va_idx].writer >= 0) { // page currently has a writer
     // Request invalidation and a copy of the page from the writer
-    debug_print("page idx %d has a writer\n", va_idx);
     if (host->manager_pagetable[va_idx].writer == host->self_id) { // mngr is owner, update PTE and send page
-      debug_print("Manager is writer for write request by %d\n", sender->id);
       host->manager_pagetable[va_idx].writer = sender->id;
       cdt_packet_t write_resp_packet;
       cdt_packet_write_resp_create(&write_resp_packet, host->manager_pagetable[va_idx].page);
@@ -148,7 +142,6 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       return 0;
     } else {
       // Request invalidation and page from writer
-      debug_print("Creating and sending invalidation pkt for page %p w index %d with owner %d\n", (void *)PGROUNDDOWN(page_addr), va_idx, host->manager_pagetable[va_idx].writer);
       cdt_packet_t invalidation_pkt;
       cdt_packet_write_invalidate_req_create(&invalidation_pkt, PGROUNDDOWN(page_addr), sender->id);
       if (cdt_connection_send(&host->peers[host->manager_pagetable[va_idx].writer].connection, &invalidation_pkt) != 0) {
@@ -164,7 +157,6 @@ int cdt_worker_write_req(cdt_peer_t *sender, cdt_packet_t *packet) {
       void * page;
       uint32_t requester_id;
       cdt_packet_write_invalidate_resp_parse(&resp_packet, &page, &requester_id);
-      debug_print("Parsed write invalidate resp packet\n");
       assert(requester_id == sender->id);
       // Update mngr PTE access and page
       host->manager_pagetable[va_idx].writer = sender->id;
@@ -277,9 +269,7 @@ int cdt_worker_read_req(cdt_peer_t *sender, cdt_packet_t *packet) {
   if (host->manager_pagetable[va_idx].writer >= 0) { // page currently has a writer
     // Request demotion and a copy of the page from the writer
     uint32_t writer = host->manager_pagetable[va_idx].writer;
-    debug_print("page idx %d has writer %d\n", va_idx, writer);
     if (writer == host->self_id) { // mngr is owner, update PTE and send page
-      debug_print("Manager is writer for read request by %d\n", sender->id);
       host->manager_pagetable[va_idx].writer = -1;
       host->manager_pagetable[va_idx].read_set[host->self_id] = 1;
       host->manager_pagetable[va_idx].read_set[sender->id] = 1;
