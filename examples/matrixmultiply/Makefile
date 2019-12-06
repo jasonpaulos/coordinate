@@ -5,7 +5,9 @@ SDIR = .
 ODIR = bin
 
 CC = gcc
-CFLAGS = -O3 -Wall -Werror -I$(COORDINATE_DIR)/include -L$(COORDINATE_DIR)/bin/loc -lrt -lcoordinate -lpthread -D DEBUG=1
+CFLAGS_DEBUG = -g -D DEBUG=1
+# CFLAGS_DEBUG = -O3 -D DEBUG=0
+CFLAGS = $(CFLAGS_DEBUG) -Wall -Werror -I$(COORDINATE_DIR)/include -L$(COORDINATE_DIR)/bin/loc -lrt -lcoordinate -lpthread
 COORDINATE_LIB = $(COORDINATE_DIR)/bin/loc/libcoordinate.so
 
 DEPS := $(wildcard $(IDIR)/*.h)
