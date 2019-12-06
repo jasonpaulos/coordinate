@@ -214,14 +214,13 @@ void* dot_product_worker(void* arg) {
 
 void fill_random_vector(uint8_t * vector, int vector_size) {
   for (int i = 0; i < vector_size; i++) {
-    *(vector + i) = random();
+    *(vector + i) = rand();
   }
 }
 
 // Vector size is the length in bytes for each vector
 // Assume it is divisible by the number of cores.
 void dot_product_test(int vector_size, int num_peers) {
-  cdt_init();
   printf("Starting dot product test\n");
   void * vec_a = cdt_malloc(vector_size);
   void * vec_b = cdt_malloc(vector_size);
@@ -249,18 +248,18 @@ void dot_product_test(int vector_size, int num_peers) {
     cdt_memcpy(assignment, (void *)&local_assignment, sizeof(local_assignment));
     cdt_thread_create(&threads[i], dot_product_worker, (void *)assignment);
   }
-  sleep(5);
-  // int result;
-  // for (int i = 0; i < num_machines; i++) {
-  //   void *return_value;
-  //   cdt_thread_join(&threads[i], &return_value);
-  //   result += (int)return_value;
-  // }
-  // printf("Dot product example result: %d", result);
+
+  intptr_t result;
+  for (int i = 0; i < num_peers; i++) {
+    void *return_value;
+    cdt_thread_join(&threads[i], &return_value);
+    result += (intptr_t)return_value;
+  }
+  printf("Dot product example result: %ld\n", result);
 }
 
 int main(int argc, char *argv[]) {
-  // cdt_init();
+  cdt_init();
 
   // printf("Hello from the main thread\n");
   
@@ -271,6 +270,10 @@ int main(int argc, char *argv[]) {
   // cdt_thread_join(&thread, &return_value);
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
-  dot_product_test(4096 * 2, 2);
+  int num_peers = cdt_get_cores() - 1;
+  int pages_per_peer = 1;
+  int num_pages = pages_per_peer * num_peers;
+  
+  dot_product_test(4096 * num_pages, num_peers);
   return 0;
 }

@@ -29,7 +29,7 @@ void* cdt_malloc(size_t size) {
     num_pages_req++;
 
   if (host->manager) {
-    printf("Manager trying to malloc\n");
+    debug_print("Manager trying to malloc\n");
     int start_pte_idx = cdt_find_unused_pte(host->self_id, num_pages_req);
     if (start_pte_idx == -1)
       return NULL;
