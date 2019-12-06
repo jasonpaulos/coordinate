@@ -95,13 +95,16 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
   int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
   int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest + n - 1));
 
+  uint64_t start_offset = (uint64_t)dest - PGROUNDDOWN(dest);
+  uint64_t src_page_start = (uint64_t)src - start_offset;
+
   if (host->manager == 0) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_host_pte_t *pte = &host->shared_pagetable[i];
       uint64_t page_addr = pte->shared_va;
-      uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
-      size_t length = i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE;
-      const void *src_addr = src + (i - start_va_idx) * PAGESIZE + offset;
+      uint64_t offset = i == start_va_idx ? start_offset : 0;
+      size_t length = (i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE) - offset;
+      const void *src_addr = (const void*)src_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
       if (pte->in_use && pte->access == READ_WRITE_PAGE) {
         // Our machine has R/W access to the page, so go ahead and write to the page
@@ -140,9 +143,9 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
       uint64_t page_addr = IDX_TO_SHARED_VA(i);
-      uint64_t offset = i == start_va_idx ? (uint64_t)dest - PGROUNDDOWN(dest) : 0;
-      size_t length = i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE;
-      const void *src_addr = src + (i - start_va_idx) * PAGESIZE + offset;
+      uint64_t offset = i == start_va_idx ? start_offset : 0;
+      size_t length = (i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE) - offset;
+      const void *src_addr = (const void*)src_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
       if (pte->in_use && pte->writer >= 0) {
         // page is in write mode
@@ -229,13 +232,16 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
   int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(src));
   int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(src + n - 1));
 
+  uint64_t start_offset = (uint64_t)src - PGROUNDDOWN(src);
+  uint64_t dest_page_start = (uint64_t)dest - start_offset;
+
   if (host->manager == 0) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_host_pte_t *pte = &host->shared_pagetable[i];
       uint64_t page_addr = pte->shared_va;
-      uint64_t offset = i == start_va_idx ? (uint64_t)src - PGROUNDDOWN(src) : 0;
-      size_t length = i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE;
-      void *dest_addr = dest + (i - start_va_idx) * PAGESIZE + offset;
+      uint64_t offset = i == start_va_idx ? start_offset : 0;
+      size_t length = (i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE) - offset;
+      void *dest_addr = (void*)dest_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
       if (pte->in_use && pte->access != INVALID_PAGE) {
         // Our machine has R/W access to the page, so go ahead and write to the page
@@ -274,9 +280,9 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
       uint64_t page_addr = IDX_TO_SHARED_VA(i);
-      uint64_t offset = i == start_va_idx ? (uint64_t)src - PGROUNDDOWN(src) : 0;
-      size_t length = i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE;
-      void *dest_addr = dest + (i - start_va_idx) * PAGESIZE + offset;
+      uint64_t offset = i == start_va_idx ? start_offset : 0;
+      size_t length = (i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE) - offset;
+      void *dest_addr = (void*)dest_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
       if (pte->in_use && pte->writer >= 0) {
         // page is in write mode
