@@ -179,7 +179,7 @@ void cdt_packet_thread_create_resp_parse(cdt_packet_t *packet, cdt_thread_t *thr
   char valid;
   uint32_t data[2];
   memmove(&valid, packet->data, sizeof(valid));
-  memmove(data + sizeof(valid), packet->data, sizeof(data));
+  memmove(data, packet->data + sizeof(valid), sizeof(data));
 
   thread->valid = valid;
   thread->remote_peer_id = ntohl(data[0]);
