@@ -194,7 +194,6 @@ typedef struct worker_assignment {
 } worker_assignment;
 
 void* dot_product_worker(void* arg) {
-  printf("Hello from the second thread, my arg is %ld\n", (intptr_t)arg);
   // Copy out the assignment
   worker_assignment assignment;
   cdt_memcpy((void *)&assignment, arg, sizeof(assignment));
@@ -225,7 +224,6 @@ void dot_product_test(int vector_size, int num_peers) {
   void * vec_a = cdt_malloc(vector_size);
   void * vec_b = cdt_malloc(vector_size);
 
-  printf("malloced shared vectors: %p, %p\n", vec_a, vec_b);
   uint8_t local_vec_a[vector_size];
   uint8_t local_vec_b[vector_size];
   fill_random_vector(local_vec_a, vector_size);
@@ -236,20 +234,22 @@ void dot_product_test(int vector_size, int num_peers) {
 
   cdt_thread_t threads[num_peers];
   int section_size = vector_size / (cdt_get_cores() - 1);
-  printf("num_cores %d, sec size %d\n", cdt_get_cores(), section_size);
   for (intptr_t i = 0; i < num_peers; i++) {
-    void * assignment = cdt_malloc(1);
+    void * assignment = cdt_malloc(4096);
 
     worker_assignment local_assignment = {
-      .vec_a_start = vec_a + section_size * i,
-      .vec_b_start = vec_b + section_size * i,
+      .vec_a_start = (void *)((uint64_t)vec_a + section_size * i),
+      .vec_b_start = (void *)((uint64_t)vec_b + section_size * i),
       .section_len = section_size,
     };
+    if (i == num_peers - 1) {
+      local_assignment.section_len = ((uint64_t)vec_a + vector_size) - ((uint64_t)vec_a + section_size * i);
+    }
     cdt_memcpy(assignment, (void *)&local_assignment, sizeof(local_assignment));
     cdt_thread_create(&threads[i], dot_product_worker, (void *)assignment);
   }
 
-  intptr_t result;
+  intptr_t result = 0;
   for (int i = 0; i < num_peers; i++) {
     void *return_value;
     cdt_thread_join(&threads[i], &return_value);
@@ -271,9 +271,7 @@ int main(int argc, char *argv[]) {
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
   int num_peers = cdt_get_cores() - 1;
-  int pages_per_peer = 1;
-  int num_pages = pages_per_peer * num_peers;
   
-  dot_product_test(4096 * num_pages, num_peers);
+  dot_product_test(4096 * 7, num_peers);
   return 0;
 }
