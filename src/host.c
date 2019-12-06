@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include "server.h"
 #include "connection.h"
 #include "packet.h"
@@ -153,6 +154,12 @@ cdt_host_t* cdt_host_init(int manager, cdt_server_t *server, uint32_t peers_to_b
   cdt_host.server = server;
   cdt_host.peers_to_be_connected = peers_to_be_connected;
   cdt_host.num_peers = manager ? 1 : 2;
+
+  void *addr = mmap((void*)CDT_SHARED_VA_START, CDT_MAX_SHARED_PAGES * PAGESIZE, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE, -1, 0);
+  if (addr != (void*)CDT_SHARED_VA_START) {
+    debug_print("Could not mmap at CDT_SHARED_VA_START\n");
+    return NULL;
+  }
   
   // Initialize all the locks and virtual addresses for appropriate pagetable
   if (manager) {
