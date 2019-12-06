@@ -277,8 +277,9 @@ int main(int argc, char *argv[]) {
   // cdt_thread_join(&thread, &return_value);
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
+  int num_pages = atoi(argv[1]);
   int num_peers = cdt_get_cores() - 1;
   
-  dot_product_test(4096 * 7, num_peers);
+  dot_product_test(4096 * num_pages, num_peers);
   return 0;
 }
