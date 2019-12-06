@@ -9,15 +9,22 @@
 #include "worker.h"
 
 int cdt_get_cores() {
+#ifdef COORDINATE_LOCAL
+  return 5;
+#else
   cdt_host_t *host = cdt_get_host();
   if (!host)
     return 0;
   
   return host->num_peers;
+#endif
 }
 
 // Returns NULL on failure. size is the number of bytes requested.
 void* cdt_malloc(size_t size) {
+#ifdef COORDINATE_LOCAL
+  return malloc(size);
+#else
   cdt_host_t *host = cdt_get_host();
   if (!host) {
     debug_print("Host not yet initialized\n");
@@ -29,7 +36,6 @@ void* cdt_malloc(size_t size) {
     num_pages_req++;
 
   if (host->manager) {
-    printf("Manager trying to malloc\n");
     int start_pte_idx = cdt_find_unused_pte(host->self_id, num_pages_req);
     if (start_pte_idx == -1)
       return NULL;
@@ -63,25 +69,26 @@ void* cdt_malloc(size_t size) {
   if (page_address == 0)
     return NULL;
 
-  printf("Received packet from manager receiver-thread with shared VA %p and %d pages\n", (void*)page_address, resp_num_pages);
-
   int pte_idx = SHARED_VA_TO_IDX(page_address);
   // Note: there's probably a race here
   for (int i = pte_idx; i < pte_idx + resp_num_pages; i++) {
-    printf("pte idx: %d\n", i);
     pthread_mutex_lock(&host->shared_pagetable[i].lock);
     host->shared_pagetable[i].in_use = 1;
     host->shared_pagetable[i].access = READ_WRITE_PAGE;
     host->shared_pagetable[i].page = calloc(1, PAGESIZE);
-    printf("Filled in PTE index %d with new local pointer %p\n", i, host->shared_pagetable[i].page);
     pthread_mutex_unlock(&host->shared_pagetable[i].lock);
   }
 
   return (void *)page_address;
+#endif
 }
 
 void cdt_free(void *ptr) {
+#ifdef COORDINATE_LOCAL
+  free(ptr);
+#else
   // TODO
+#endif
 }
 
 int is_shared_va(const void * addr) {
@@ -118,14 +125,12 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
         if (cdt_connection_send(&host->peers[0].connection, &packet) != 0)
           return -1;
 
-        debug_print("Sent write req packet from manager for page %p with idx %d\n", (void *)page_addr, i);
-
         if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1)
           return -1;
 
         void * page;
         cdt_packet_write_resp_parse(&packet, &page);
-        debug_print("Parsed write response packet for page %p from manager\n", (void*)page_addr);
+
         // Update machine PTE access and page
         pte->access = READ_WRITE_PAGE;
         pte->in_use = 1;
@@ -155,8 +160,6 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
           memmove(local_copy, src_addr, length);
         } else {
           // Send request to writer for invalidation and page
-          debug_print("Creating and sending invalidation pkt for page %p w index %d\n", (void *)page_addr, i);
-
           cdt_packet_t packet;
           cdt_packet_write_invalidate_req_create(&packet, page_addr, host->self_id);
           if (cdt_connection_send(&host->peers[pte->writer].connection, &packet) != 0)
@@ -168,7 +171,6 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
           void *page;
           uint32_t requester_id;
           cdt_packet_write_invalidate_resp_parse(&packet, &page, &requester_id);
-          debug_print("Parsed write invalidate resp packet for page %p\n", (void*)page_addr);
           assert(requester_id == host->self_id);
 
           // Update mngr PTE access and page
@@ -254,14 +256,11 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
         if (cdt_connection_send(&host->peers[0].connection, &packet) != 0)
           return -1;
 
-        debug_print("Sent read req packet from manager for page %p with idx %d\n", (void *)page_addr, i);
-
         if (mq_receive(host->peers[host->self_id].task_queue, (char*)&packet, sizeof(packet), NULL) == -1)
           return -1;
 
         void *page;
         cdt_packet_read_resp_parse(&packet, &page);
-        debug_print("Parsed read response packet from manager\n");
 
         // Update machine PTE access and page
         pte->access = READ_ONLY_PAGE;
@@ -328,6 +327,9 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
 }
 
 void* cdt_memcpy(void *dest, const void *src, size_t n) {
+#ifdef COORDINATE_LOCAL
+  return memcpy(dest, src, n);
+#else
   cdt_host_t *host = cdt_get_host();
 
   // src and dest are both local
@@ -337,7 +339,6 @@ void* cdt_memcpy(void *dest, const void *src, size_t n) {
 
   // Write shared mem: src is local and dest is shared
   if (is_shared_va(dest) == 1 &&  is_shared_va(src) == 0) {
-    debug_print("write case\n");
     int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest));
     int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(dest + n - 1));
 
@@ -355,7 +356,6 @@ void* cdt_memcpy(void *dest, const void *src, size_t n) {
   }
   // Read shared mem: dest is local and src is shared
   if (is_shared_va(src) == 1 &&  is_shared_va(dest) == 0) {
-    debug_print("read case\n");
     int start_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(src));
     int end_va_idx = SHARED_VA_TO_IDX(PGROUNDDOWN(src + n - 1));
 
@@ -382,4 +382,5 @@ void* cdt_memcpy(void *dest, const void *src, size_t n) {
   free(buffer);
 
   return res == 0 ? NULL : dest;
+#endif
 }
