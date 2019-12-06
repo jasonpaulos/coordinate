@@ -147,12 +147,17 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
     // Manager is attempting to write
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = IDX_TO_SHARED_VA(i);
+      uint64_t page_addr = pte->shared_va;
       uint64_t offset = i == start_va_idx ? start_offset : 0;
       size_t length = (i == end_va_idx ? (uint64_t)dest + n - PGROUNDDOWN(dest + n - 1) : PAGESIZE) - offset;
       const void *src_addr = (const void*)src_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
-      if (pte->in_use && pte->writer >= 0) {
+      if (!pte->in_use) {
+        debug_print("Trying to read invalid page at %p\n", (void*)page_addr);
+        return -1;
+      }
+
+      if (pte->writer >= 0) {
         // page is in write mode
         if (pte->writer == host->self_id) {
           // manager has R/W access
@@ -209,14 +214,9 @@ int cdt_copyout(void *dest, const void *src, size_t n) {
           assert(resp_page_addr == page_addr);
         }
 
-        for (int p = 0; p < CDT_MAX_MACHINES; p++) {
-          if (p != host->self_id)
+        for (int p = 0; p < CDT_MAX_MACHINES; p++)
             pte->read_set[p] = 0;
-        }
-
-        // Update manager PTE
-        assert(pte->read_set[host->self_id] == 1);
-        pte->read_set[host->self_id] = 0;
+        
         pte->writer = host->self_id;
 
         void *local_copy = pte->page + offset;
@@ -278,12 +278,17 @@ int cdt_copyin(void *dest, const void *src, size_t n) {
     // Manager is attempting to read
     for (int i = start_va_idx; i <= end_va_idx; i++) {
       cdt_manager_pte_t *pte = &host->manager_pagetable[i];
-      uint64_t page_addr = IDX_TO_SHARED_VA(i);
+      uint64_t page_addr = pte->shared_va;
       uint64_t offset = i == start_va_idx ? start_offset : 0;
       size_t length = (i == end_va_idx ? (uint64_t)src + n - PGROUNDDOWN(src + n - 1) : PAGESIZE) - offset;
       void *dest_addr = (void*)dest_page_start + (i - start_va_idx) * PAGESIZE + offset;
 
-      if (pte->in_use && pte->writer >= 0) {
+      if (!pte->in_use) {
+        debug_print("Trying to write to invalid page at %p\n", (void*)page_addr);
+        return -1;
+      }
+
+      if (pte->writer >= 0) {
         // page is in write mode
         if (pte->writer == host->self_id) {
           // manager has R/W access
@@ -334,6 +339,7 @@ void* cdt_memcpy(void *dest, const void *src, size_t n) {
 
   // src and dest are both local
   if (is_shared_va(dest) == 0 && is_shared_va(src) == 0) {
+    debug_print("memcpy local to local: dest = %p, src = %p\n", dest, src);
     return memcpy(dest, src, n);
   }
 

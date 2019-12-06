@@ -6,14 +6,13 @@
 typedef struct cdt_server_t cdt_server_t;
 
 #define CDT_MAX_MACHINES 32
-#define CDT_MAX_SHARED_PAGES 1024 // note: we may want to change this 
+#define CDT_MAX_SHARED_PAGES 10240 // note: we may want to change this 
 #define CDT_SHARED_VA_START (1L << 32)
 #define CDT_SHARED_VA_END ((1L << 32) + CDT_MAX_SHARED_PAGES * PAGESIZE)
 #define INVALID_PAGE 0
 #define READ_ONLY_PAGE 1
 #define READ_WRITE_PAGE 2
 #define SHARED_VA_TO_IDX(va) (((uint64_t)(va) - CDT_SHARED_VA_START) / PAGESIZE)
-#define IDX_TO_SHARED_VA(idx) ((uint64_t)(idx) * PAGESIZE + CDT_SHARED_VA_START)
 #define PGROUNDDOWN(a) ((uint64_t)(a) & ~(PAGESIZE-1))
 
 extern const char* const cdt_task_queue_names[CDT_MAX_MACHINES];
