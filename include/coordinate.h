@@ -14,8 +14,9 @@ extern "C" {
  * Gets the number of cores available to this process.
  * 
  * When run under dsm mode, this is the maximum number of threads that can be created.
+ * When run under local mode, this simply returns fallback
  */
-int cdt_get_cores();
+int cdt_get_cores(int fallback);
 
 /**
  * Allocates size bytes of shared memory and returns a pointer to the allocated memory.

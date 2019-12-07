@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 #include <coordinate.h>
 #include "matrix.h"
 
@@ -40,10 +40,17 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  struct timespec start, stop;
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+  struct timeval start, stop;
+  gettimeofday(&start, NULL);
 
   int N = atoi(argv[1]);
+
+  int fallback = 0;
+  if (argc >= 3) {
+    fallback = atoi(argv[2]);
+  }
+
+  int num_threads = cdt_get_cores(fallback) - 1;
 
   double *A = create_matrix(N);
   double *B = create_matrix(N);
@@ -58,7 +65,7 @@ int main(int argc, char *argv[]) {
   // print_matrix(N, B);
 
   printf("%d\n", N);
-  int res = multiply(N, A, B, C);
+  int res = multiply(N, A, B, C, num_threads);
 
   if (res != 0) {
     return res;
@@ -66,8 +73,8 @@ int main(int argc, char *argv[]) {
 
   // print_matrix(N, C);
 
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
-  double time_taken = (double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_nsec - start.tv_nsec) / 1e9;
+  gettimeofday(&stop, NULL);
+  double time_taken = (double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) / 1e6;
 
   printf("Time taken: %f seconds\n", time_taken);
 

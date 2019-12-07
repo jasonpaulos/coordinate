@@ -8,9 +8,9 @@
 #include "coordinate.h"
 #include "worker.h"
 
-int cdt_get_cores() {
+int cdt_get_cores(int fallback) {
 #ifdef COORDINATE_LOCAL
-  return 4;
+  return fallback;
 #else
   cdt_host_t *host = cdt_get_host();
   if (!host)

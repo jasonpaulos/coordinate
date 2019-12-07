@@ -44,8 +44,6 @@ void* compute_row(void* args){
     for (int j = 0; j < argument.N; j++) {
       double C_i_j = 0;
 
-      printf("Computing (i = %d,j = %d)\n", i, j);
-
       for (int k = 0; k < argument.N; k++) {
         double A_i_k, B_j_k;
         cdt_memcpy(&A_i_k, argument.A + i * argument.N + k, sizeof(double));
@@ -78,11 +76,9 @@ void transpose(int N, double *M) {
 
 // multiple two square matrix, A and B, with size N
 // and return the value into C
-int multiply(int N, double *A, double *B, double *C) {
+int multiply(int N, double *A, double *B, double *C, int num_threads) {
 
   // initialize pthread attribute value
-  
-  int num_threads = cdt_get_cores() - 1;
 
   cdt_thread_t *thread_pool = malloc(num_threads * sizeof(cdt_thread_t));
   arguments *args_pool = (arguments*)cdt_malloc(num_threads * sizeof(arguments));

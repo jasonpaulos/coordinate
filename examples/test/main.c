@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <coordinate.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 
 void* test0_helper(void* arg) {
   printf("Hello from the second thread, my arg is %p\n", arg);
@@ -219,24 +219,26 @@ void fill_random_vector(uint8_t * vector, int vector_size) {
 
 // Vector size is the length in bytes for each vector
 // Assume it is divisible by the number of cores.
-void dot_product_test(int vector_size, int num_peers) {
+void dot_product_test(int vector_size, int num_peers, int num_cores) {
   printf("Starting dot product test\n");
-  clock_t start, end; 
-  start = clock(); 
+
+  struct timeval start, stop;
+  gettimeofday(&start, NULL);
   
   void * vec_a = cdt_malloc(vector_size);
   void * vec_b = cdt_malloc(vector_size);
 
-  uint8_t local_vec_a[vector_size];
-  uint8_t local_vec_b[vector_size];
-  fill_random_vector(local_vec_a, vector_size);
-  fill_random_vector(local_vec_b, vector_size);
+  uint8_t *vector = malloc(vector_size);
+  fill_random_vector(vector, vector_size);
+  cdt_memcpy(vec_a, (void *)vector, vector_size);
 
-  cdt_memcpy(vec_a, (void *)local_vec_a, vector_size);
-  cdt_memcpy(vec_b, (void *)local_vec_b, vector_size);
+  fill_random_vector(vector, vector_size);
+  cdt_memcpy(vec_b, (void *)vector, vector_size);
+
+  free(vector);
 
   cdt_thread_t threads[num_peers];
-  int section_size = vector_size / (cdt_get_cores() - 1);
+  int section_size = vector_size / (num_cores - 1);
   for (intptr_t i = 0; i < num_peers; i++) {
     void * assignment = cdt_malloc(4096);
 
@@ -259,14 +261,21 @@ void dot_product_test(int vector_size, int num_peers) {
     result += (intptr_t)return_value;
   }
 
-  end = clock();
-  double time_taken = ((double)(end - start))/CLOCKS_PER_SEC;
+  gettimeofday(&stop, NULL);
+  double time_taken = (double)(stop.tv_sec - start.tv_sec) + (double)(stop.tv_usec - start.tv_usec) / 1e6;
 
   printf("Dot product example result: %ld with time %f\n", result, time_taken);
 }
 
 int main(int argc, char *argv[]) {
   cdt_init();
+
+  int fallback = 0;
+  if (argc >= 3) {
+    fallback = atoi(argv[2]);
+  }
+
+  int num_cores = cdt_get_cores(fallback);
 
   // printf("Hello from the main thread\n");
   
@@ -278,8 +287,8 @@ int main(int argc, char *argv[]) {
 
   // printf("Got %ld from other thread, done!\n", (long)return_value);
   int num_pages = atoi(argv[1]);
-  int num_peers = cdt_get_cores() - 1;
+  int num_peers = num_cores - 1;
   
-  dot_product_test(4096 * num_pages, num_peers);
+  dot_product_test(4096 * num_pages, num_peers, num_cores);
   return 0;
 }
