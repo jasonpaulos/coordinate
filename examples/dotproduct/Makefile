@@ -1,4 +1,4 @@
-NAME = test
+NAME = dotproduct
 COORDINATE_DIR = $(abspath ../..)
 IDIR = .
 SDIR = .
