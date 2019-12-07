@@ -8,24 +8,27 @@ To install a Ubuntu 18.04 virtual machine with Vagrant:
 vagrant box add ubuntu/bionic64
 ```
 
-
 Instructions for running Coordinate
 ```
 make
 ```
-To copy the binaries into usr/local
+
+To install the shared libraries into /usr/local
 ```
 sudo make install 
 ```
-To start the Coordinate manager with the user program ./example/test/bin/test
+
+To start the Coordinate manager with the user program ./example/dotproduct/bin/dotproduct
 ```
-coordinate --host <args> --cores <number of machines> ./example/test/bin/test <user program args>
+coordinate --host <args> --cores <number of machines> ./example/dotproduct/bin/dotproduct <user program args>
 ```
-To connect a Coordinate peer with the user program ./example/test/bin/test
+
+To connect a Coordinate peer with the user program ./example/dotproduct/bin/dotproduct
 ```
-coordinate --host <args> --connect <args> ./example/test/bin/test <user program args>
+coordinate --host <args> --connect <args> ./example/dotproduct/bin/dotproduct
 ```
+
 To run a user application in local mode
 ```
-./example/<test program name>/bin/<test program name> 
+./example/dotproduct/bin/dotproduct <user program args>
 ```
